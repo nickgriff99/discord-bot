@@ -7,3 +7,19 @@ build/
 *.tmp
 .vscode/
 .idea/
+
+# YouTube download cache files
+*.html
+*-watch.html
+ytdl-cache/
+temp/
+*.part
+*.ytdl
+*.f*
+
+# Audio cache files
+*.opus
+*.webm
+*.m4a
+*.mp3
+*.wav

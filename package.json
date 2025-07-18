@@ -1,7 +1,7 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
-  "description": "Discord bot for YouTube Music control",
+  "description": "Discord bot that plays YouTube music directly in voice channels",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -10,12 +10,25 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
-  "keywords": ["discord", "bot", "youtube-music", "music", "control"],
+  "keywords": [
+    "discord",
+    "bot",
+    "youtube-music",
+    "music",
+    "control"
+  ],
   "author": "nickgriff99",
   "license": "MIT",
   "dependencies": {
+    "@discordjs/voice": "^0.16.1",
+    "@distube/yt-dlp": "^2.0.1",
     "discord.js": "^14.21.0",
-    "dotenv": "^17.2.0"
+    "distube": "^5.0.7",
+    "dotenv": "^17.2.0",
+    "ffmpeg-static": "^5.2.0",
+    "googleapis": "^142.0.0",
+    "libsodium-wrappers": "^0.7.15",
+    "opusscript": "^0.0.8"
   },
   "devDependencies": {
     "eslint": "^9.31.0"
