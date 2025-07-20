@@ -67,12 +67,23 @@ class YouTubeMusicDiscordBot {
   setupEvents() {
     this.client.once('ready', () => {
       logger.info(`Bot ready: ${this.client.user.tag}`);
+      logger.info(`Serving ${this.client.guilds.cache.size} Discord servers`);
       this.youtubeAPI.initializeDistube(this.client);
       this.updatePresence('🎵 Ready to play music');
     });
 
     this.client.on('error', (error) => {
       logger.error('Discord error:', error);
+    });
+
+    this.client.on('guildCreate', (guild) => {
+      logger.info(`Bot added to new server: ${guild.name} (${guild.id})`);
+      logger.info(`Now serving ${this.client.guilds.cache.size} Discord servers`);
+    });
+
+    this.client.on('guildDelete', (guild) => {
+      logger.info(`Bot removed from server: ${guild.name} (${guild.id})`);
+      logger.info(`Now serving ${this.client.guilds.cache.size} Discord servers`);
     });
 
     this.client.on('interactionCreate', async (interaction) => {
@@ -146,12 +157,30 @@ class YouTubeMusicDiscordBot {
         selfMute: false
       });
       
-      // Ensure the connection is ready
       connection.on('stateChange', (oldState, newState) => {
         if (newState.status === 'disconnected') {
           connection.destroy();
         }
       });
+
+      try {
+        await Promise.race([
+          new Promise((resolve) => {
+            if (connection.state.status === 'ready') {
+              resolve();
+            } else {
+              connection.once('stateChange', (_, newState) => {
+                if (newState.status === 'ready') resolve();
+              });
+            }
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection timeout')), 10000)
+          )
+        ]);
+      } catch (error) {
+        console.error('Voice connection timeout:', error);
+      }
     }
 
     return connection;
@@ -187,10 +216,14 @@ class YouTubeMusicDiscordBot {
       const result = await this.youtubeAPI.play(interaction, query);
       
       if (result.success) {
+        const emoji = result.addedToQueue ? '➕' : '🎵';
         await interaction.editReply({
-          content: `🎵 ${result.message}\n**Channel:** ${result.track.channel}`
+          content: `${emoji} ${result.message}\n**Channel:** ${result.track.channel}`
         });
-        this.updatePresence(`🎵 ${result.track.title}`);
+        
+        if (!result.addedToQueue) {
+          this.updatePresence(`🎵 ${result.track.title}`);
+        }
       } else {
         await interaction.editReply({
           content: `❌ ${result.message}`
@@ -365,13 +398,15 @@ class YouTubeMusicDiscordBot {
     try {
       logger.info('Registering commands...');
 
-      const route = process.env.DISCORD_GUILD_ID 
-        ? Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID)
-        : Routes.applicationCommands(process.env.DISCORD_CLIENT_ID);
+      const route = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID
+        ? Routes.applicationCommands(process.env.DISCORD_CLIENT_ID)
+        : Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID);
 
       await rest.put(route, { body: [] });
       await rest.put(route, { body: this.commandsData });
-      logger.info(`Registered ${this.commandsData.length} commands`);
+      
+      const scope = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID ? 'globally' : `for guild ${process.env.DISCORD_GUILD_ID}`;
+      logger.info(`Registered ${this.commandsData.length} commands ${scope}`);
     } catch (error) {
       logger.error('Command registration failed:', error);
       throw error;

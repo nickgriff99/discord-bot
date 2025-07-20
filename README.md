@@ -1,19 +1,39 @@
 # Discord YouTube Music Bot
 
-A Discord bot that plays music from YouTube directly in Discord voice channels using Google's YouTube Data API. No additional software installation required!
+🎵 **A professional Discord music bot that serves multiple servers simultaneously**
+
+## For Server Owners
+
+Simply invite the bot to your Discord server using this link:
+[**🎵 Add Music Bot to Your Server**](https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID_HERE&permissions=3148800&scope=bot%20applications.commands)
+
+### Available Commands:
+- `/play <song>` - Play or queue a song from YouTube
+- `/pause` - Pause the current song
+- `/resume` - Resume playback
+- `/skip` - Skip to next song in queue
+- `/previous` - Go to previous song
+- `/queue` - Show current queue
+- `/nowplaying` - Show current song info
+- `/volume <1-100>` - Set volume level
+- `/stop` - Stop playback and clear queue
+- `/join` - Join your voice channel
+- `/leave` - Leave voice channel
 
 ## Features
 
 - 🎵 Play music from YouTube directly in Discord voice channels
 - ⏯️ Full playback controls (play, pause, resume, skip, previous, stop)
 - 🔊 Volume control
-- 📋 Queue management
+- 📋 Smart queue management with automatic queuing
 - 🎭 Now playing display
 - 🔄 Repeat modes (none, track, queue)
 - 🎮 Easy-to-use slash commands
-- 🚀 Seamless setup - just add to your Discord server!
+- 🚀 Multi-server support - one bot serves unlimited Discord servers
 
-## Quick Setup
+---
+
+## For Developers & Self-Hosting
 
 ### 1. Get API Keys
 

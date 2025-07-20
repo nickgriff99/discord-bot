@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { google } from 'googleapis';
 import { DisTube } from 'distube';
 import { YtDlpPlugin } from '@distube/yt-dlp';
@@ -18,10 +17,18 @@ class YouTubeAPI {
 
   initializeDistube(client) {
     if (!this.distube) {
+      const ffmpegPath = ffmpegStatic || 'ffmpeg';
+      console.log('Using ffmpeg path:', ffmpegPath);
+      
+      process.env.FFMPEG_PATH = ffmpegPath;
+      
       this.distube = new DisTube(client, {
-        plugins: [new YtDlpPlugin()],
+        plugins: [new YtDlpPlugin({
+          update: false,
+          ytdlpOptions: ['--no-check-certificate', '--prefer-free-formats']
+        })],
         ffmpeg: {
-          path: ffmpegStatic
+          path: ffmpegPath
         }
       });
       
@@ -49,15 +56,22 @@ class YouTubeAPI {
 
   async searchYouTube(query) {
     try {
-      const response = await this.youtube.search.list({
-        part: 'snippet',
-        q: query,
-        type: 'video',
-        maxResults: 1,
-        videoCategoryId: '10',
-        order: 'relevance',
-        safeSearch: 'none'
-      });
+      const response = await Promise.race([
+        this.youtube.search.list({
+          part: 'snippet',
+          q: query,
+          type: 'video',
+          maxResults: 1,
+          videoCategoryId: '10',
+          order: 'relevance',
+          safeSearch: 'none',
+          videoEmbeddable: 'true',
+          videoSyndicated: 'true'
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Search timeout')), 30000)
+        )
+      ]);
 
       if (response.data.items.length === 0) {
         return null;
@@ -87,15 +101,28 @@ class YouTubeAPI {
           return { success: false, message: 'No results found' };
         }
         
-        await this.distube.play(interaction.member.voice.channel, track.url, {
-          textChannel: interaction.channel,
-          member: interaction.member
-        });
+        const currentQueue = this.distube.getQueue(interaction.guildId);
+        const wasPlaying = currentQueue && currentQueue.songs.length > 0 && !currentQueue.stopped;
+        
+        await Promise.race([
+          this.distube.play(interaction.member.voice.channel, track.url, {
+            textChannel: interaction.channel,
+            member: interaction.member
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Play timeout - try again')), 15000)
+          )
+        ]);
+        
+        const message = wasPlaying 
+          ? `Added to queue: ${track.title}` 
+          : `Now playing: ${track.title}`;
         
         return { 
           success: true, 
           track: track,
-          message: `Now playing: ${track.title}`
+          message: message,
+          addedToQueue: wasPlaying
         };
         
       } else {
@@ -117,7 +144,7 @@ class YouTubeAPI {
         }
       }
       return { success: false, message: 'Nothing is playing' };
-    } catch (_) {
+    } catch {
       return { success: false, message: 'Nothing is playing' };
     }
   }
@@ -132,7 +159,7 @@ class YouTubeAPI {
         }
       }
       return { success: false, message: 'Nothing is paused' };
-    } catch (_) {
+    } catch {
       return { success: false, message: 'Nothing is paused' };
     }
   }
@@ -144,7 +171,7 @@ class YouTubeAPI {
         return { success: true, message: 'Stopped' };
       }
       return { success: false, message: 'Nothing is playing' };
-    } catch (_) {
+    } catch {
       return { success: false, message: 'Nothing is playing' };
     }
   }
@@ -159,7 +186,7 @@ class YouTubeAPI {
         }
       }
       return { success: false, message: 'No next song in queue' };
-    } catch (_) {
+    } catch {
       return { success: false, message: 'No next song in queue' };
     }
   }
@@ -174,7 +201,7 @@ class YouTubeAPI {
         }
       }
       return { success: false, message: 'No previous song' };
-    } catch (_) {
+    } catch {
       return { success: false, message: 'No previous song' };
     }
   }
@@ -186,7 +213,7 @@ class YouTubeAPI {
         this.distube.setVolume(guildId, this.volume);
       }
       return { success: true, volume: this.volume };
-    } catch (_) {
+    } catch {
       return { success: false, message: 'Unable to set volume' };
     }
   }
@@ -210,8 +237,7 @@ class YouTubeAPI {
           };
         }
       }
-    } catch (_) {
-      // Fall through to default return
+    } catch {
     }
     
     return {
@@ -241,8 +267,7 @@ class YouTubeAPI {
           };
         }
       }
-    } catch (_) {
-      // Fall through to default return
+    } catch {
     }
     
     return { current: null, queue: [], length: 0 };
