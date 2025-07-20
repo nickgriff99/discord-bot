@@ -45,7 +45,11 @@ class YouTubeAPI {
           })],
           ffmpeg: {
             path: ffmpegPath
-          }
+          },
+          emitNewSongOnly: false,
+          leaveOnEmpty: false,
+          leaveOnFinish: false,
+          leaveOnStop: false
         });
         
         console.log('✅ DisTube instance created successfully');
@@ -67,7 +71,9 @@ class YouTubeAPI {
     this.distube.on('playSong', (queue, song) => {
       console.log('🎵 Now playing:', song.name);
       console.log('Song duration:', song.duration);
+      console.log('Song URL:', song.url);
       console.log('Voice connection status:', queue.voice?.connection?.state?.status);
+      console.log('Audio resource state:', queue.voice?.audioResource?.playbackDuration);
     });
 
     this.distube.on('addSong', (queue, song) => {
@@ -76,11 +82,18 @@ class YouTubeAPI {
 
     this.distube.on('finish', (queue) => {
       console.log('🏁 Queue finished for guild:', queue.id);
+      console.log('Reason for finish - queue songs remaining:', queue.songs?.length || 0);
+    });
+
+    this.distube.on('finishSong', (queue, song) => {
+      console.log('🎤 Song finished:', song.name);
+      console.log('Next songs in queue:', queue.songs?.length || 0);
     });
 
     this.distube.on('error', (channel, error) => {
       console.error('❌ DisTube error:', error.message);
       console.error('Error code:', error.errorCode);
+      console.error('Full error:', error);
       if (channel) {
         channel.send(`❌ Music error: ${error.message}`).catch(() => {});
       }
@@ -96,7 +109,12 @@ class YouTubeAPI {
 
     this.distube.on('initQueue', (queue) => {
       console.log('🎶 Queue initialized for guild:', queue.id);
+      console.log('Initial voice connection state:', queue.voice?.connection?.state?.status);
       queue.volume = this.volume;
+    });
+
+    this.distube.on('debug', (message) => {
+      console.log('🐛 DisTube debug:', message);
     });
   }
 
