@@ -114,6 +114,10 @@ class YouTubeAPI {
 
   async play(interaction, query = null) {
     try {
+      if (!this.distube) {
+        return { success: false, message: 'Music system not ready, please try again' };
+      }
+
       if (query) {
         const track = await this.searchYouTube(query);
         
@@ -121,8 +125,16 @@ class YouTubeAPI {
           return { success: false, message: 'No results found' };
         }
         
-        const currentQueue = this.distube.getQueue(interaction.guildId);
-        const wasPlaying = currentQueue && currentQueue.songs.length > 0 && !currentQueue.stopped;
+        let currentQueue = null;
+        let wasPlaying = false;
+        
+        try {
+          currentQueue = this.distube.getQueue(interaction.guildId);
+          wasPlaying = currentQueue && currentQueue.songs && currentQueue.songs.length > 0 && !currentQueue.stopped;
+        } catch (error) {
+          console.log('Queue check error:', error.message);
+          wasPlaying = false;
+        }
         
         await Promise.race([
           this.distube.play(interaction.member.voice.channel, track.url, {
@@ -158,7 +170,7 @@ class YouTubeAPI {
     try {
       if (guildId) {
         const queue = this.distube.getQueue(guildId);
-        if (queue) {
+        if (queue && !queue.paused) {
           this.distube.pause(guildId);
           return { success: true, message: 'Paused' };
         }
@@ -187,8 +199,11 @@ class YouTubeAPI {
   stop(guildId) {
     try {
       if (guildId) {
-        this.distube.stop(guildId);
-        return { success: true, message: 'Stopped' };
+        const queue = this.distube.getQueue(guildId);
+        if (queue) {
+          this.distube.stop(guildId);
+          return { success: true, message: 'Stopped' };
+        }
       }
       return { success: false, message: 'Nothing is playing' };
     } catch {
@@ -271,9 +286,9 @@ class YouTubeAPI {
 
   getQueue(guildId) {
     try {
-      if (guildId) {
+      if (guildId && this.distube) {
         const queue = this.distube.getQueue(guildId);
-        if (queue) {
+        if (queue && queue.songs && queue.songs.length > 0) {
           return {
             current: queue.songs[0] ? {
               title: queue.songs[0].name,
@@ -287,7 +302,8 @@ class YouTubeAPI {
           };
         }
       }
-    } catch {
+    } catch (error) {
+      console.log('Queue access error:', error.message);
     }
     
     return { current: null, queue: [], length: 0 };
