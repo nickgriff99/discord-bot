@@ -47,7 +47,13 @@ class YouTubeAPI {
           })],
           ffmpeg: {
             path: ffmpegPath
-          }
+          },
+          leaveOnFinish: false,
+          leaveOnStop: false,
+          leaveOnEmpty: false,
+          emptyCooldown: 0,
+          nsfw: false,
+          emitNewSongOnly: false
         });
         
         console.log('✅ DisTube instance created successfully');
@@ -68,18 +74,35 @@ class YouTubeAPI {
   setupDisTubeEvents() {
     this.distube.on('playSong', (queue, song) => {
       console.log('🎵 Now playing:', song.name);
+      console.log('Voice connection status:', queue.voice?.connection?.state?.status);
     });
 
     this.distube.on('addSong', (queue, song) => {
       console.log('➕ Added to queue:', song.name);
     });
 
-    this.distube.on('finish', () => {
-      console.log('🏁 Queue finished');
+    this.distube.on('finish', (queue) => {
+      console.log('🏁 Queue finished for guild:', queue.id);
     });
 
-    this.distube.on('error', (_, error) => {
+    this.distube.on('error', (channel, error) => {
       console.error('❌ DisTube error:', error.message);
+      console.error('Error details:', error);
+      if (channel) {
+        channel.send(`❌ Music error: ${error.message}`).catch(() => {});
+      }
+    });
+
+    this.distube.on('disconnect', (queue) => {
+      console.log('🔌 DisTube disconnected from guild:', queue.id);
+    });
+
+    this.distube.on('empty', (queue) => {
+      console.log('📭 Voice channel empty for guild:', queue.id);
+    });
+
+    this.distube.on('noRelated', (queue) => {
+      console.log('🚫 No related song found for guild:', queue.id);
     });
   }
 

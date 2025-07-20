@@ -173,6 +173,7 @@ class YouTubeMusicDiscordBot {
     let connection = getVoiceConnection(interaction.guild.id);
     
     if (!connection) {
+      console.log('Creating new voice connection for guild:', interaction.guild.id);
       connection = joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: interaction.guild.id,
@@ -182,29 +183,45 @@ class YouTubeMusicDiscordBot {
       });
       
       connection.on('stateChange', (oldState, newState) => {
+        console.log(`Voice connection state changed: ${oldState.status} -> ${newState.status}`);
         if (newState.status === 'disconnected') {
+          console.log('Voice connection disconnected, destroying...');
           connection.destroy();
         }
       });
 
+      connection.on('error', (error) => {
+        console.error('Voice connection error:', error);
+      });
+
       try {
+        console.log('Waiting for voice connection to be ready...');
         await Promise.race([
           new Promise((resolve) => {
             if (connection.state.status === 'ready') {
+              console.log('Voice connection already ready');
               resolve();
             } else {
               connection.once('stateChange', (_, newState) => {
-                if (newState.status === 'ready') resolve();
+                console.log('Voice connection state changed to:', newState.status);
+                if (newState.status === 'ready') {
+                  console.log('Voice connection is now ready');
+                  resolve();
+                }
               });
             }
           }),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout')), 10000)
+            setTimeout(() => reject(new Error('Connection timeout')), 15000)
           )
         ]);
+        console.log('Voice connection established successfully');
       } catch (error) {
         console.error('Voice connection timeout:', error);
+        throw error;
       }
+    } else {
+      console.log('Using existing voice connection for guild:', interaction.guild.id);
     }
 
     return connection;
@@ -236,6 +253,20 @@ class YouTubeMusicDiscordBot {
       }
 
       await interaction.editReply({ content: '🔍 Searching for your song...' });
+
+      // Ensure voice connection is established before playing
+      try {
+        const connection = await this.getVoiceConnection(interaction);
+        if (!connection) {
+          await interaction.editReply({ content: '❌ Failed to join voice channel!' });
+          return;
+        }
+        console.log('Voice connection ready, proceeding with play...');
+      } catch (connectionError) {
+        console.error('Voice connection failed:', connectionError);
+        await interaction.editReply({ content: '❌ Failed to connect to voice channel. Please try again.' });
+        return;
+      }
 
       const result = await this.youtubeAPI.play(interaction, query);
       
