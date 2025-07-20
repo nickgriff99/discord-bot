@@ -267,19 +267,6 @@ class YouTubeMusicDiscordBot {
 
       await interaction.editReply({ content: '🔍 Searching for your song...' });
 
-      try {
-        const connection = await this.getVoiceConnection(interaction);
-        if (!connection) {
-          await interaction.editReply({ content: '❌ Failed to join voice channel!' });
-          return;
-        }
-        console.log('Voice connection ready, proceeding with play...');
-      } catch (connectionError) {
-        console.error('Voice connection failed:', connectionError);
-        await interaction.editReply({ content: '❌ Failed to connect to voice channel. Please try again.' });
-        return;
-      }
-
       const result = await this.youtubeAPI.play(interaction, query);
       
       if (result.success) {
@@ -427,9 +414,20 @@ class YouTubeMusicDiscordBot {
 
   async handleJoin(interaction) {
     await this.executeWithErrorHandling(interaction, async () => {
-      const connection = await this.getVoiceConnection(interaction);
-      if (connection) {
-        await interaction.editReply({ content: '✅ Joined voice channel!' });
+      if (!interaction.member.voice.channel) {
+        await interaction.editReply({ content: '❌ You need to be in a voice channel!' });
+        return;
+      }
+      
+      try {
+        const connection = getVoiceConnection(interaction.guild.id);
+        if (connection) {
+          await interaction.editReply({ content: '✅ Already connected to voice channel!' });
+        } else {
+          await interaction.editReply({ content: '✅ Use /play to join and start playing music!' });
+        }
+      } catch {
+        await interaction.editReply({ content: '❌ Failed to check voice connection status.' });
       }
     });
   }
@@ -438,7 +436,7 @@ class YouTubeMusicDiscordBot {
     await this.executeWithErrorHandling(interaction, async () => {
       const connection = getVoiceConnection(interaction.guild.id);
       if (connection) {
-        this.youtubeAPI.disconnect();
+        this.youtubeAPI.stop(interaction.guildId);
         connection.destroy();
         await interaction.editReply({ content: '✅ Left voice channel!' });
         this.updatePresence('🎵 Ready to play music');
