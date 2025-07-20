@@ -15,50 +15,53 @@ class YouTubeAPI {
     this.repeatMode = 'none';
   }
 
-  initializeDistube(client) {
+  async initializeDistube(client) {
     if (!this.distube) {
       try {
+        console.log('Starting DisTube initialization...');
+        console.log('Node.js version:', process.version);
+        console.log('Environment:', process.env.NODE_ENV);
+        
         const ffmpegPath = ffmpegStatic || 'ffmpeg';
         console.log('Initializing DisTube with ffmpeg path:', ffmpegPath);
+        console.log('ffmpeg-static resolved to:', ffmpegPath);
+        
+        // Test if ffmpeg exists
+        if (typeof ffmpegPath === 'string' && ffmpegPath !== 'ffmpeg') {
+          const fs = await import('fs');
+          try {
+            fs.accessSync(ffmpegPath, fs.constants.F_OK);
+            console.log('✅ FFmpeg binary found and accessible');
+          } catch (error) {
+            console.log('❌ FFmpeg binary not accessible:', error.message);
+          }
+        }
         
         process.env.FFMPEG_PATH = ffmpegPath;
         
+        // Ultra-simplified DisTube configuration for Railway
+        console.log('Creating DisTube with minimal configuration...');
         this.distube = new DisTube(client, {
           plugins: [new YtDlpPlugin({
-            update: false,
-            ytdlpOptions: [
-              '--no-check-certificate', 
-              '--prefer-free-formats',
-              '--no-call-home',
-              '--no-cache-dir',
-              '--socket-timeout', '30',
-              '--retries', '3'
-            ]
+            update: false
           })],
           ffmpeg: {
-            path: ffmpegPath,
-            args: {
-              global: ['-loglevel', 'error'],
-              input: ['-reconnect', '1', '-reconnect_streamed', '1'],
-              output: ['-f', 'opus', '-ar', '48000', '-ac', '2']
-            }
-          },
-          youtubeDL: false,
-          ytdlOptions: {
-            highWaterMark: 1024 * 1024 * 64,
-            quality: 'highestaudio',
-            filter: 'audioonly',
-            opusEncoded: true,
-            encoderArgs: ['-af', 'bass=g=10,dynaudnorm=f=200']
+            path: ffmpegPath
           }
         });
         
-        console.log('DisTube initialized successfully');
+        console.log('✅ DisTube instance created successfully');
         this.setupDisTubeEvents();
+        console.log('✅ DisTube events configured');
+        console.log('✅ DisTube initialization completed successfully');
       } catch (error) {
-        console.error('Failed to initialize DisTube:', error);
+        console.error('❌ Failed to initialize DisTube:', error);
+        console.error('Error stack:', error.stack);
         this.distube = null;
+        throw error;
       }
+    } else {
+      console.log('DisTube already initialized');
     }
   }
 
@@ -120,19 +123,28 @@ class YouTubeAPI {
 
   async play(interaction, query = null) {
     try {
+      console.log('Play command called. DisTube status:', !!this.distube);
+      
       if (!this.distube) {
-        console.log('DisTube not initialized, attempting to initialize...');
+        console.log('DisTube not initialized, attempting emergency initialization...');
         
         if (interaction && interaction.client) {
-          this.initializeDistube(interaction.client);
-          
-          if (!this.distube) {
-            return { success: false, message: 'Music system not ready, please try again in a few seconds' };
+          try {
+            await this.initializeDistube(interaction.client);
+            
+            if (!this.distube) {
+              console.log('Emergency initialization failed - DisTube still null');
+              return { success: false, message: 'Music system initialization failed. Please try again or contact support.' };
+            }
+            
+            console.log('Emergency initialization successful, waiting 2 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (initError) {
+            console.error('Emergency initialization error:', initError);
+            return { success: false, message: 'Music system initialization failed. Please try again or contact support.' };
           }
-          
-          await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-          return { success: false, message: 'Music system not ready, please try again in a few seconds' };
+          return { success: false, message: 'Music system not ready. Please try again or contact support.' };
         }
       }
 

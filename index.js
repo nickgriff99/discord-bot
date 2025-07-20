@@ -36,7 +36,8 @@ class YouTubeMusicDiscordBot {
       { name: 'queue', description: 'Show the current queue' },
       { name: 'stop', description: 'Stop playback and clear queue' },
       { name: 'join', description: 'Join your voice channel' },
-      { name: 'leave', description: 'Leave the voice channel' }
+      { name: 'leave', description: 'Leave the voice channel' },
+      { name: 'debug', description: 'Show bot system status' }
     ];
 
     this.commandsData = commands.map(cmd => {
@@ -69,13 +70,26 @@ class YouTubeMusicDiscordBot {
       logger.info(`Bot ready: ${this.client.user.tag}`);
       logger.info(`Serving ${this.client.guilds.cache.size} Discord servers`);
       
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      logger.info('Waiting 3 seconds before DisTube initialization...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       try {
-        this.youtubeAPI.initializeDistube(this.client);
-        logger.info('DisTube initialization completed');
+        logger.info('Starting DisTube initialization...');
+        await this.youtubeAPI.initializeDistube(this.client);
+        logger.info('✅ DisTube initialization completed successfully');
       } catch (error) {
-        logger.error('DisTube initialization failed:', error);
+        logger.error('❌ DisTube initialization failed:', error);
+        logger.error('Error details:', error.stack);
+        
+        logger.info('Attempting DisTube retry in 5 seconds...');
+        setTimeout(async () => {
+          try {
+            await this.youtubeAPI.initializeDistube(this.client);
+            logger.info('✅ DisTube retry successful');
+          } catch (retryError) {
+            logger.error('❌ DisTube retry failed:', retryError);
+          }
+        }, 5000);
       }
       
       this.updatePresence('🎵 Ready to play music');
@@ -135,7 +149,8 @@ class YouTubeMusicDiscordBot {
       'queue': () => this.handleQueue(interaction),
       'stop': () => this.handleStop(interaction),
       'join': () => this.handleJoin(interaction),
-      'leave': () => this.handleLeave(interaction)
+      'leave': () => this.handleLeave(interaction),
+      'debug': () => this.handleDebug(interaction)
     };
 
     const handler = handlers[command];
@@ -387,6 +402,25 @@ class YouTubeMusicDiscordBot {
       } else {
         await interaction.editReply({ content: '❌ Not connected to a voice channel.' });
       }
+    });
+  }
+
+  async handleDebug(interaction) {
+    await this.executeWithErrorHandling(interaction, async () => {
+      const distubeStatus = this.youtubeAPI.distube ? '✅ Initialized' : '❌ Not Initialized';
+      const nodeVersion = process.version;
+      const uptime = Math.floor(process.uptime());
+      const memory = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+      
+      await interaction.editReply({
+        content: `🔧 **Bot Debug Info**\n\n` +
+                `**DisTube Status:** ${distubeStatus}\n` +
+                `**Node.js Version:** ${nodeVersion}\n` +
+                `**Uptime:** ${uptime} seconds\n` +
+                `**Memory Usage:** ${memory} MB\n` +
+                `**Environment:** ${process.env.NODE_ENV || 'development'}\n` +
+                `**Servers:** ${this.client.guilds.cache.size}`
+      });
     });
   }
 
