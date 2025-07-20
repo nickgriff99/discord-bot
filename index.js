@@ -65,10 +65,19 @@ class YouTubeMusicDiscordBot {
   }
 
   setupEvents() {
-    this.client.once('ready', () => {
+    this.client.once('ready', async () => {
       logger.info(`Bot ready: ${this.client.user.tag}`);
       logger.info(`Serving ${this.client.guilds.cache.size} Discord servers`);
-      this.youtubeAPI.initializeDistube(this.client);
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      try {
+        this.youtubeAPI.initializeDistube(this.client);
+        logger.info('DisTube initialization completed');
+      } catch (error) {
+        logger.error('DisTube initialization failed:', error);
+      }
+      
       this.updatePresence('🎵 Ready to play music');
     });
 

@@ -17,42 +17,48 @@ class YouTubeAPI {
 
   initializeDistube(client) {
     if (!this.distube) {
-      const ffmpegPath = ffmpegStatic || 'ffmpeg';
-      console.log('Using ffmpeg path:', ffmpegPath);
-      
-      process.env.FFMPEG_PATH = ffmpegPath;
-      
-      this.distube = new DisTube(client, {
-        plugins: [new YtDlpPlugin({
-          update: false,
-          ytdlpOptions: [
-            '--no-check-certificate', 
-            '--prefer-free-formats',
-            '--no-call-home',
-            '--no-cache-dir',
-            '--socket-timeout', '30',
-            '--retries', '3'
-          ]
-        })],
-        ffmpeg: {
-          path: ffmpegPath,
-          args: {
-            global: ['-loglevel', 'error'],
-            input: ['-reconnect', '1', '-reconnect_streamed', '1'],
-            output: ['-f', 'opus', '-ar', '48000', '-ac', '2']
+      try {
+        const ffmpegPath = ffmpegStatic || 'ffmpeg';
+        console.log('Initializing DisTube with ffmpeg path:', ffmpegPath);
+        
+        process.env.FFMPEG_PATH = ffmpegPath;
+        
+        this.distube = new DisTube(client, {
+          plugins: [new YtDlpPlugin({
+            update: false,
+            ytdlpOptions: [
+              '--no-check-certificate', 
+              '--prefer-free-formats',
+              '--no-call-home',
+              '--no-cache-dir',
+              '--socket-timeout', '30',
+              '--retries', '3'
+            ]
+          })],
+          ffmpeg: {
+            path: ffmpegPath,
+            args: {
+              global: ['-loglevel', 'error'],
+              input: ['-reconnect', '1', '-reconnect_streamed', '1'],
+              output: ['-f', 'opus', '-ar', '48000', '-ac', '2']
+            }
+          },
+          youtubeDL: false,
+          ytdlOptions: {
+            highWaterMark: 1024 * 1024 * 64,
+            quality: 'highestaudio',
+            filter: 'audioonly',
+            opusEncoded: true,
+            encoderArgs: ['-af', 'bass=g=10,dynaudnorm=f=200']
           }
-        },
-        youtubeDL: false,
-        ytdlOptions: {
-          highWaterMark: 1024 * 1024 * 64,
-          quality: 'highestaudio',
-          filter: 'audioonly',
-          opusEncoded: true,
-          encoderArgs: ['-af', 'bass=g=10,dynaudnorm=f=200']
-        }
-      });
-      
-      this.setupDisTubeEvents();
+        });
+        
+        console.log('DisTube initialized successfully');
+        this.setupDisTubeEvents();
+      } catch (error) {
+        console.error('Failed to initialize DisTube:', error);
+        this.distube = null;
+      }
     }
   }
 
@@ -115,8 +121,22 @@ class YouTubeAPI {
   async play(interaction, query = null) {
     try {
       if (!this.distube) {
-        return { success: false, message: 'Music system not ready, please try again' };
+        console.log('DisTube not initialized, attempting to initialize...');
+        
+        if (interaction && interaction.client) {
+          this.initializeDistube(interaction.client);
+          
+          if (!this.distube) {
+            return { success: false, message: 'Music system not ready, please try again in a few seconds' };
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+          return { success: false, message: 'Music system not ready, please try again in a few seconds' };
+        }
       }
+
+      console.log('DisTube is ready, processing play command...');
 
       if (query) {
         const track = await this.searchYouTube(query);
@@ -131,11 +151,13 @@ class YouTubeAPI {
         try {
           currentQueue = this.distube.getQueue(interaction.guildId);
           wasPlaying = currentQueue && currentQueue.songs && currentQueue.songs.length > 0 && !currentQueue.stopped;
+          console.log('Queue check completed. Was playing:', wasPlaying);
         } catch (error) {
           console.log('Queue check error:', error.message);
           wasPlaying = false;
         }
         
+        console.log('Starting DisTube play...');
         await Promise.race([
           this.distube.play(interaction.member.voice.channel, track.url, {
             textChannel: interaction.channel,
@@ -150,6 +172,7 @@ class YouTubeAPI {
           ? `Added to queue: ${track.title}` 
           : `Now playing: ${track.title}`;
         
+        console.log('Play command completed successfully');
         return { 
           success: true, 
           track: track,
