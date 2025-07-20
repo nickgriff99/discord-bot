@@ -413,7 +413,7 @@ class YouTubeMusicDiscordBot {
       const memory = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
       
       await interaction.editReply({
-        content: `🔧 **Bot Debug Info**\n\n` +
+        content: '🔧 **Bot Debug Info**\n\n' +
                 `**DisTube Status:** ${distubeStatus}\n` +
                 `**Node.js Version:** ${nodeVersion}\n` +
                 `**Uptime:** ${uptime} seconds\n` +
