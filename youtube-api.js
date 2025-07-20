@@ -47,13 +47,7 @@ class YouTubeAPI {
           })],
           ffmpeg: {
             path: ffmpegPath
-          },
-          leaveOnFinish: false,
-          leaveOnStop: false,
-          leaveOnEmpty: false,
-          emptyCooldown: 0,
-          nsfw: false,
-          emitNewSongOnly: false
+          }
         });
         
         console.log('✅ DisTube instance created successfully');
