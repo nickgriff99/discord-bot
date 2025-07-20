@@ -196,29 +196,44 @@ class YouTubeMusicDiscordBot {
 
       try {
         console.log('Waiting for voice connection to be ready...');
-        await Promise.race([
-          new Promise((resolve) => {
-            if (connection.state.status === 'ready') {
-              console.log('Voice connection already ready');
-              resolve();
-            } else {
-              connection.once('stateChange', (_, newState) => {
-                console.log('Voice connection state changed to:', newState.status);
-                if (newState.status === 'ready') {
-                  console.log('Voice connection is now ready');
-                  resolve();
-                }
-              });
-            }
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout')), 15000)
-          )
-        ]);
+        
+        // Wait for connection to be ready with proper event handling
+        if (connection.state.status !== 'ready') {
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Connection timeout'));
+            }, 20000);
+            
+            const onStateChange = (_, newState) => {
+              console.log('Voice connection state changed to:', newState.status);
+              if (newState.status === 'ready') {
+                console.log('Voice connection is now ready');
+                clearTimeout(timeout);
+                connection.off('stateChange', onStateChange);
+                resolve();
+              } else if (newState.status === 'disconnected' || newState.status === 'destroyed') {
+                console.log('Voice connection failed');
+                clearTimeout(timeout);
+                connection.off('stateChange', onStateChange);
+                reject(new Error('Voice connection failed'));
+              }
+            };
+            
+            connection.on('stateChange', onStateChange);
+          });
+        } else {
+          console.log('Voice connection already ready');
+        }
+        
         console.log('Voice connection established successfully');
       } catch (error) {
-        console.error('Voice connection timeout:', error);
-        throw error;
+        // Double-check connection status before failing
+        if (connection.state.status === 'ready') {
+          console.log('Voice connection is actually ready despite error');
+        } else {
+          console.error('Voice connection failed:', error);
+          throw error;
+        }
       }
     } else {
       console.log('Using existing voice connection for guild:', interaction.guild.id);
