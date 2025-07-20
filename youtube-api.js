@@ -41,7 +41,8 @@ class YouTubeAPI {
         console.log('Creating DisTube with minimal configuration...');
         this.distube = new DisTube(client, {
           plugins: [new YtDlpPlugin({
-            update: false
+            update: false,
+            parallel: true
           })],
           ffmpeg: {
             path: ffmpegPath
@@ -70,6 +71,12 @@ class YouTubeAPI {
       console.log('Song URL:', song.url);
       console.log('Voice connection status:', queue.voice?.connection?.state?.status);
       console.log('Audio resource state:', queue.voice?.audioResource?.playbackDuration);
+      
+      setTimeout(() => {
+        console.log('🕐 5 seconds check - still playing?', queue.playing);
+        console.log('🕐 Current song:', queue.songs[0]?.name || 'none');
+        console.log('🕐 Audio resource duration:', queue.voice?.audioResource?.playbackDuration);
+      }, 5000);
     });
 
     this.distube.on('addSong', (queue, song) => {
@@ -83,6 +90,7 @@ class YouTubeAPI {
 
     this.distube.on('finishSong', (queue, song) => {
       console.log('🎤 Song finished:', song.name);
+      console.log('Song played for duration:', queue.voice?.audioResource?.playbackDuration || 'unknown');
       console.log('Next songs in queue:', queue.songs?.length || 0);
     });
 
