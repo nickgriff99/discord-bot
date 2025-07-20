@@ -26,7 +26,6 @@ class YouTubeAPI {
         console.log('Initializing DisTube with ffmpeg path:', ffmpegPath);
         console.log('ffmpeg-static resolved to:', ffmpegPath);
         
-        // Test if ffmpeg exists
         if (typeof ffmpegPath === 'string' && ffmpegPath !== 'ffmpeg') {
           const fs = await import('fs');
           try {
@@ -39,7 +38,6 @@ class YouTubeAPI {
         
         process.env.FFMPEG_PATH = ffmpegPath;
         
-        // Ultra-simplified DisTube configuration for Railway
         console.log('Creating DisTube with minimal configuration...');
         this.distube = new DisTube(client, {
           plugins: [new YtDlpPlugin({

@@ -197,7 +197,6 @@ class YouTubeMusicDiscordBot {
       try {
         console.log('Waiting for voice connection to be ready...');
         
-        // Wait for connection to be ready with proper event handling
         if (connection.state.status !== 'ready') {
           await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
@@ -227,7 +226,6 @@ class YouTubeMusicDiscordBot {
         
         console.log('Voice connection established successfully');
       } catch (error) {
-        // Double-check connection status before failing
         if (connection.state.status === 'ready') {
           console.log('Voice connection is actually ready despite error');
         } else {
@@ -269,7 +267,6 @@ class YouTubeMusicDiscordBot {
 
       await interaction.editReply({ content: '🔍 Searching for your song...' });
 
-      // Ensure voice connection is established before playing
       try {
         const connection = await this.getVoiceConnection(interaction);
         if (!connection) {
