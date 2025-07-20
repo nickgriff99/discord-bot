@@ -45,11 +45,6 @@ class YouTubeAPI {
           })],
           ffmpeg: {
             path: ffmpegPath
-          },
-          ytdlOptions: {
-            highWaterMark: 1024 * 1024 * 16,
-            quality: 'highestaudio',
-            filter: 'audioonly'
           }
         });
         
