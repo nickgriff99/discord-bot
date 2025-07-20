@@ -44,7 +44,29 @@ class YouTubeAPI {
             update: false
           })],
           ffmpeg: {
-            path: ffmpegPath
+            path: ffmpegPath,
+            args: {
+              global: [
+                '-reconnect', '1',
+                '-reconnect_streamed', '1',
+                '-reconnect_delay_max', '5'
+              ],
+              input: [
+                '-re'
+              ],
+              output: [
+                '-f', 's16le',
+                '-ar', '48000',
+                '-ac', '2'
+              ]
+            }
+          },
+          ytdlOptions: {
+            highWaterMark: 1024 * 1024 * 64,
+            quality: 'highestaudio',
+            filter: 'audioonly',
+            opusEncoded: false,
+            encoderArgs: ['-af', 'bass=g=10,dynaudnorm=f=200']
           }
         });
         
@@ -67,6 +89,8 @@ class YouTubeAPI {
     this.distube.on('playSong', (queue, song) => {
       console.log('🎵 Now playing:', song.name);
       console.log('Voice connection status:', queue.voice?.connection?.state?.status);
+      console.log('Song duration:', song.duration);
+      console.log('Song URL:', song.url);
     });
 
     this.distube.on('addSong', (queue, song) => {
@@ -79,6 +103,7 @@ class YouTubeAPI {
 
     this.distube.on('error', (channel, error) => {
       console.error('❌ DisTube error:', error.message);
+      console.error('Error code:', error.errorCode);
       console.error('Error details:', error);
       if (channel) {
         channel.send(`❌ Music error: ${error.message}`).catch(() => {});
@@ -95,6 +120,44 @@ class YouTubeAPI {
 
     this.distube.on('noRelated', (queue) => {
       console.log('🚫 No related song found for guild:', queue.id);
+    });
+
+    this.distube.on('searchNoResult', (message, query) => {
+      console.log('🔍 No search results for:', query);
+    });
+
+    this.distube.on('searchResult', (message, result, query) => {
+      console.log('🔍 Search result found for:', query);
+    });
+
+    this.distube.on('searchCancel', (message, query) => {
+      console.log('🔍 Search cancelled for:', query);
+    });
+
+    this.distube.on('searchInvalidAnswer', (message, answer, query) => {
+      console.log('🔍 Invalid search answer:', answer, 'for query:', query);
+    });
+
+    this.distube.on('searchDone', (message, answer, query) => {
+      console.log('🔍 Search completed for:', query);
+    });
+
+    this.distube.on('addList', (queue, playlist) => {
+      console.log('📋 Added playlist:', playlist.name);
+    });
+
+    this.distube.on('playList', (queue, playlist, song) => {
+      console.log('📋 Playing playlist:', playlist.name, 'starting with:', song.name);
+    });
+
+    this.distube.on('initQueue', (queue) => {
+      console.log('🎶 Queue initialized for guild:', queue.id);
+      console.log('Voice connection state:', queue.voice?.connection?.state?.status);
+      queue.volume = this.volume;
+    });
+
+    this.distube.on('ffmpegDebug', (debug) => {
+      console.log('🔧 FFmpeg debug:', debug);
     });
   }
 
