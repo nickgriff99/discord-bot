@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ['nodejs_18', 'ffmpeg-full', 'python3']
+
+[phases.install]
+cmds = ['npm ci']
+
+[phases.build]
+cmds = ['npm run lint']
+
+[start]
+cmd = 'npm start'

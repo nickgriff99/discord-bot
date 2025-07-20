@@ -25,10 +25,30 @@ class YouTubeAPI {
       this.distube = new DisTube(client, {
         plugins: [new YtDlpPlugin({
           update: false,
-          ytdlpOptions: ['--no-check-certificate', '--prefer-free-formats']
+          ytdlpOptions: [
+            '--no-check-certificate', 
+            '--prefer-free-formats',
+            '--no-call-home',
+            '--no-cache-dir',
+            '--socket-timeout', '30',
+            '--retries', '3'
+          ]
         })],
         ffmpeg: {
-          path: ffmpegPath
+          path: ffmpegPath,
+          args: {
+            global: ['-loglevel', 'error'],
+            input: ['-reconnect', '1', '-reconnect_streamed', '1'],
+            output: ['-f', 'opus', '-ar', '48000', '-ac', '2']
+          }
+        },
+        youtubeDL: false,
+        ytdlOptions: {
+          highWaterMark: 1024 * 1024 * 64,
+          quality: 'highestaudio',
+          filter: 'audioonly',
+          opusEncoded: true,
+          encoderArgs: ['-af', 'bass=g=10,dynaudnorm=f=200']
         }
       });
       
