@@ -42,11 +42,16 @@ class YouTubeAPI {
         this.distube = new DisTube(client, {
           plugins: [new YtDlpPlugin({
             update: false,
-            parallel: true
+            parallel: true,
+            streamOptions: {
+              highWaterMark: 1024 * 1024 * 32,
+              quality: 'highestaudio'
+            }
           })],
           ffmpeg: {
             path: ffmpegPath
-          }
+          },
+          streamType: 0
         });
         
         console.log('✅ DisTube instance created successfully');
@@ -76,6 +81,15 @@ class YouTubeAPI {
         console.log('🕐 5 seconds check - still playing?', queue.playing);
         console.log('🕐 Current song:', queue.songs[0]?.name || 'none');
         console.log('🕐 Audio resource duration:', queue.voice?.audioResource?.playbackDuration);
+        
+        if (!queue.playing && queue.songs.length > 0) {
+          console.log('🔄 Song failed to play, attempting retry...');
+          try {
+            this.distube.play(queue.voice.channel, song.url);
+          } catch (retryError) {
+            console.error('❌ Retry failed:', retryError.message);
+          }
+        }
       }, 5000);
     });
 
@@ -92,6 +106,11 @@ class YouTubeAPI {
       console.log('🎤 Song finished:', song.name);
       console.log('Song played for duration:', queue.voice?.audioResource?.playbackDuration || 'unknown');
       console.log('Next songs in queue:', queue.songs?.length || 0);
+      
+      const playbackDuration = queue.voice?.audioResource?.playbackDuration;
+      if (playbackDuration < 5000) {
+        console.log('⚠️ Song finished too quickly, may have failed to stream properly');
+      }
     });
 
     this.distube.on('error', (channel, error) => {
