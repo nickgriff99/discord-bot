@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, ActivityType } from 'discord.js';
+import { Client, GatewayIntentBits, ActivityType } from 'discord.js';
 import { joinVoiceChannel, getVoiceConnection } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import YouTubeAPI from './youtube-api.js';
@@ -19,49 +19,8 @@ class YouTubeMusicDiscordBot {
     });
 
     this.commands = new Map();
-    this.commandsRegistered = false;
     this.youtubeAPI = new YouTubeAPI();
-    this.setupCommands();
     this.setupEvents();
-  }
-
-  setupCommands() {
-    const commandDefinitions = [
-      { name: 'play', description: 'Play a song in the voice channel', options: [{ name: 'query', description: 'Song name or search query', type: 'STRING', required: true }] },
-      { name: 'pause', description: 'Pause the current song' },
-      { name: 'resume', description: 'Resume playback' },
-      { name: 'skip', description: 'Skip to the next song' },
-      { name: 'previous', description: 'Go to the previous song' },
-      { name: 'volume', description: 'Set the volume', options: [{ name: 'level', description: 'Volume level (0-100)', type: 'INTEGER', required: true, minValue: 0, maxValue: 100 }] },
-      { name: 'nowplaying', description: 'Show current song info' },
-      { name: 'queue', description: 'Show the current queue' },
-      { name: 'stop', description: 'Stop playback and clear queue' },
-      { name: 'join', description: 'Join your voice channel' },
-      { name: 'leave', description: 'Leave the voice channel' },
-      { name: 'debug', description: 'Show bot system status' }
-    ];
-
-    this.commandsData = commandDefinitions.map(cmd => {
-      const builder = new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description);
-      
-      cmd.options?.forEach(opt => {
-        if (opt.type === 'STRING') {
-          builder.addStringOption(option => 
-            option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false)
-          );
-        } else if (opt.type === 'INTEGER') {
-          builder.addIntegerOption(option => {
-            const intOption = option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false);
-            if (opt.minValue !== undefined) intOption.setMinValue(opt.minValue);
-            if (opt.maxValue !== undefined) intOption.setMaxValue(opt.maxValue);
-            return intOption;
-          });
-        }
-      });
-      
-      this.commands.set(cmd.name, builder);
-      return builder.toJSON();
-    });
   }
 
   setupEvents() {
@@ -465,28 +424,7 @@ class YouTubeMusicDiscordBot {
   }
 
   async registerCommands() {
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
-
-    try {
-      logger.info('Registering commands...');
-
-      const route = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID
-        ? Routes.applicationCommands(process.env.DISCORD_CLIENT_ID)
-        : Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID);
-
-      await rest.put(route, { body: [] });
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      await rest.put(route, { body: this.commandsData });
-      
-      const scope = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID ? 'globally' : `for guild ${process.env.DISCORD_GUILD_ID}`;
-      logger.info(`Registered ${this.commandsData.length} commands ${scope}`);
-      this.commandsRegistered = true;
-    } catch (error) {
-      logger.error('Command registration failed:', error);
-      throw error;
-    }
+    return;
   }
 
   async start() {
@@ -507,7 +445,6 @@ class YouTubeMusicDiscordBot {
       process.exit(1);
     }
 
-    await this.registerCommands();
     await this.client.login(process.env.DISCORD_BOT_TOKEN);
   }
 }
