@@ -465,11 +465,6 @@ class YouTubeMusicDiscordBot {
   }
 
   async registerCommands() {
-    if (this.commandsRegistered) {
-      logger.info('Commands already registered, skipping...');
-      return;
-    }
-
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
 
     try {
@@ -479,20 +474,10 @@ class YouTubeMusicDiscordBot {
         ? Routes.applicationCommands(process.env.DISCORD_CLIENT_ID)
         : Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID);
 
-      const existingCommands = await rest.get(route);
-      const existingCommandNames = existingCommands.map(cmd => cmd.name);
-      const newCommandNames = this.commandsData.map(cmd => cmd.name);
-
-      const hasChanges = existingCommands.length !== this.commandsData.length || 
-                        !newCommandNames.every(name => existingCommandNames.includes(name));
-
-      if (!hasChanges) {
-        logger.info('Commands are up to date, skipping registration');
-        this.commandsRegistered = true;
-        return;
-      }
-
       await rest.put(route, { body: [] });
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       await rest.put(route, { body: this.commandsData });
       
       const scope = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID ? 'globally' : `for guild ${process.env.DISCORD_GUILD_ID}`;
