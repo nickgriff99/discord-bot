@@ -77,12 +77,7 @@ class YouTubeAPI {
         if (process.env.NODE_ENV === 'production') {
           console.log('🏭 Production mode: Disabling YtDlpPlugin due to Railway limitations');
           this.distube = new DisTube(client, {
-            ffmpeg: { path: ffmpegPath },
-            emitNewSongOnly: true,
-            leaveOnEmpty: true,
-            emptyCooldown: 30,
-            leaveOnFinish: false,
-            leaveOnStop: false
+            ffmpeg: { path: ffmpegPath }
           });
         } else {
           this.distube = new DisTube(client, {
