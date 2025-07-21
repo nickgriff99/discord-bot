@@ -15,6 +15,24 @@ class YouTubeAPI {
     this.repeatMode = 'none';
   }
 
+  createResponse(success, message, data = {}) {
+    return { success, message, ...data };
+  }
+
+  createEmptyTrackResponse() {
+    return { 
+      track: null, 
+      isPlaying: false, 
+      queue: 0, 
+      volume: this.volume, 
+      repeatMode: this.repeatMode 
+    };
+  }
+
+  createEmptyQueueResponse() {
+    return { current: null, queue: [], length: 0 };
+  }
+
   async initializeDistube(client) {
     if (!this.distube) {
       try {
@@ -38,14 +56,7 @@ class YouTubeAPI {
         
         process.env.FFMPEG_PATH = ffmpegPath;
         
-        console.log('Creating DisTube with minimal configuration...');
-        const userAgents = [
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        ];
-        
-        const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+        console.log('Creating DisTube with Railway-optimized configuration...');
         
         const ytDlpOptions = {
           ffmpegPath: ffmpegPath,
@@ -53,31 +64,32 @@ class YouTubeAPI {
           quality: 'highestaudio',
           extractorArgs: {
             'youtube': [
-              '--extractor-retries', '3',
-              '--retry-sleep-for-extractor', '5',
-              '--user-agent', randomUA,
-              '--referer', 'https://www.youtube.com/',
-              '--add-header', 'Accept-Language:en-US,en;q=0.9'
+              '--no-check-certificate',
+              '--prefer-free-formats',
+              '--no-playlist',
+              '--extract-flat', 'false',
+              '--socket-timeout', '30',
+              '--retries', '3'
             ]
           }
         };
 
         if (process.env.NODE_ENV === 'production') {
-          ytDlpOptions.extractorArgs.youtube.push(
-            '--no-check-certificate',
-            '--geo-bypass',
-            '--age-limit', '0',
-            '--sleep-interval', '1',
-            '--max-sleep-interval', '5'
-          );
+          console.log('🏭 Production mode: Disabling YtDlpPlugin due to Railway limitations');
+          this.distube = new DisTube(client, {
+            ffmpeg: { path: ffmpegPath },
+            emitNewSongOnly: true,
+            leaveOnEmpty: true,
+            emptyCooldown: 30,
+            leaveOnFinish: false,
+            leaveOnStop: false
+          });
+        } else {
+          this.distube = new DisTube(client, {
+            plugins: [new YtDlpPlugin(ytDlpOptions)],
+            ffmpeg: { path: ffmpegPath }
+          });
         }
-
-        this.distube = new DisTube(client, {
-          plugins: [new YtDlpPlugin(ytDlpOptions)],
-          ffmpeg: {
-            path: ffmpegPath
-          }
-        });
         
         console.log('✅ DisTube instance created successfully');
         this.setupDisTubeEvents();
@@ -209,67 +221,76 @@ class YouTubeAPI {
         if (interaction?.client) {
           await this.initializeDistube(interaction.client);
           if (!this.distube) {
-            return { success: false, message: 'Music system initialization failed. Please try again.' };
+            return this.createResponse(false, 'Music system initialization failed. Please try again.');
           }
           await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-          return { success: false, message: 'Music system not ready. Please try again.' };
+          return this.createResponse(false, 'Music system not ready. Please try again.');
         }
       }
 
       if (!query) {
-        return { success: false, message: 'No track to play' };
+        return this.createResponse(false, 'No track to play');
       }
 
-      const track = await this.searchYouTube(query);
-      if (!track) {
-        return { success: false, message: 'No results found for your search' };
-      }
-
-      const currentQueue = this.distube.getQueue(interaction.guildId);
-      const wasPlaying = currentQueue?.songs?.length > 0 && !currentQueue.stopped;
-
-      try {
-        await Promise.race([
-          this.distube.play(interaction.member.voice.channel, track.url, {
-            textChannel: interaction.channel,
-            member: interaction.member
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
-          )
-        ]);
-
-        const message = wasPlaying 
-          ? `Added to queue: ${track.title}` 
-          : `Now playing: ${track.title}`;
-
-        return { 
-          success: true, 
-          track,
-          message,
-          addedToQueue: wasPlaying
-        };
-      } catch (playError) {
-        if (playError.message.includes('Sign in to confirm') || 
-            playError.message.includes('bot') ||
-            playError.message.includes('YTDLP_ERROR')) {
-          
-          return await this.handleYouTubeBlocked(track);
-        }
-        throw playError;
+      if (process.env.NODE_ENV === 'production') {
+        return await this.playProductionMode(interaction, query);
+      } else {
+        return await this.playDevelopmentMode(interaction, query);
       }
     } catch (error) {
       console.error('Play error:', error.message);
-      
-      if (error.message.includes('Sign in to confirm') || error.message.includes('bot')) {
-        return { 
-          success: false, 
-          message: 'YouTube blocked this server. Try a different song or use a direct YouTube link.' 
-        };
+      return this.createResponse(false, `Error playing track: ${error.message}`);
+    }
+  }
+
+  async playProductionMode(interaction, query) {
+    console.log('🏭 Production mode: YouTube streaming not available on Railway');
+    
+    const track = await this.searchYouTube(query);
+    if (!track) {
+      return this.createResponse(false, 'No results found for your search');
+    }
+
+    return {
+      success: false,
+      message: `🚫 Railway Hosting Limitation: Cannot stream "${track.title}" due to YouTube bot detection.\n\n📋 **Solutions:**\n• **VPS Hosting**: Deploy on DigitalOcean, Linode, or AWS EC2\n• **Local Hosting**: Run bot on your computer\n• **Alternative Platforms**: Try Heroku with proxy add-ons\n\n🔗 **Direct Link**: ${track.url}`
+    };
+  }
+
+  async playDevelopmentMode(interaction, query) {
+    const track = await this.searchYouTube(query);
+    if (!track) {
+      return this.createResponse(false, 'No results found for your search');
+    }
+
+    const currentQueue = this.distube.getQueue(interaction.guildId);
+    const wasPlaying = currentQueue?.songs?.length > 0 && !currentQueue.stopped;
+
+    try {
+      await Promise.race([
+        this.distube.play(interaction.member.voice.channel, track.url, {
+          textChannel: interaction.channel,
+          member: interaction.member
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
+        )
+      ]);
+
+      const message = wasPlaying 
+        ? `Added to queue: ${track.title}` 
+        : `Now playing: ${track.title}`;
+
+      return this.createResponse(true, message, { track, addedToQueue: wasPlaying });
+    } catch (playError) {
+      if (playError.message.includes('Sign in to confirm') || 
+          playError.message.includes('bot') ||
+          playError.message.includes('YTDLP_ERROR')) {
+        
+        return await this.handleYouTubeBlocked(track);
       }
-      
-      return { success: false, message: `Error playing track: ${error.message}` };
+      throw playError;
     }
   }
 
@@ -279,54 +300,51 @@ class YouTubeAPI {
     if (process.env.NODE_ENV === 'production') {
       return {
         success: false,
-        message: `❌ YouTube blocked access to "${track.title}". This is a hosting limitation on Railway. Try:\n• Using a VPS/dedicated server\n• Different search terms\n• Direct YouTube links`
+        message: `❌ YouTube blocked access to "${track.title}". This is a hosting limitation on Railway. Try:\n• Different search terms\n• Direct YouTube links`
       };
     }
     
-    return {
-      success: false,
-      message: `❌ YouTube access blocked for "${track.title}". Try a different song.`
-    };
+    return this.createResponse(false, `❌ YouTube access blocked for "${track.title}". Try a different song.`);
   }
 
   executeQueueAction(guildId, action, successMessage, errorMessage) {
     if (!guildId || !this.distube) {
-      return { success: false, message: errorMessage };
+      return this.createResponse(false, errorMessage);
     }
     
     try {
       const queue = this.distube.getQueue(guildId);
       if (!queue) {
-        return { success: false, message: errorMessage };
+        return this.createResponse(false, errorMessage);
       }
       
       switch (action) {
       case 'pause':
-        if (queue.paused) return { success: false, message: 'Already paused' };
+        if (queue.paused) return this.createResponse(false, 'Already paused');
         this.distube.pause(guildId);
         break;
       case 'resume':
-        if (!queue.paused) return { success: false, message: 'Not paused' };
+        if (!queue.paused) return this.createResponse(false, 'Not paused');
         this.distube.resume(guildId);
         break;
       case 'stop':
         this.distube.stop(guildId);
         break;
       case 'skip':
-        if (queue.songs.length <= 1) return { success: false, message: 'No next song in queue' };
+        if (queue.songs.length <= 1) return this.createResponse(false, 'No next song in queue');
         this.distube.skip(guildId);
         break;
       case 'previous':
         this.distube.previous(guildId);
         break;
       default:
-        return { success: false, message: 'Invalid action' };
+        return this.createResponse(false, 'Invalid action');
       }
       
-      return { success: true, message: successMessage };
+      return this.createResponse(true, successMessage);
     } catch (error) {
       console.error(`Queue action error (${action}):`, error.message);
-      return { success: false, message: errorMessage };
+      return this.createResponse(false, errorMessage);
     }
   }
 
@@ -358,19 +376,19 @@ class YouTubeAPI {
       }
       return { success: true, volume: this.volume };
     } catch {
-      return { success: false, message: 'Unable to set volume' };
+      return this.createResponse(false, 'Unable to set volume');
     }
   }
 
   getCurrentTrack(guildId) {
     if (!guildId || !this.distube) {
-      return { track: null, isPlaying: false, queue: 0, volume: this.volume, repeatMode: this.repeatMode };
+      return this.createEmptyTrackResponse();
     }
 
     try {
       const queue = this.distube.getQueue(guildId);
       if (!queue?.songs?.[0]) {
-        return { track: null, isPlaying: false, queue: 0, volume: this.volume, repeatMode: this.repeatMode };
+        return this.createEmptyTrackResponse();
       }
 
       const song = queue.songs[0];
@@ -387,19 +405,19 @@ class YouTubeAPI {
       };
     } catch (error) {
       console.error('getCurrentTrack error:', error.message);
-      return { track: null, isPlaying: false, queue: 0, volume: this.volume, repeatMode: this.repeatMode };
+      return this.createEmptyTrackResponse();
     }
   }
 
   getQueue(guildId) {
     if (!guildId || !this.distube) {
-      return { current: null, queue: [], length: 0 };
+      return this.createEmptyQueueResponse();
     }
 
     try {
       const queue = this.distube.getQueue(guildId);
       if (!queue?.songs?.length) {
-        return { current: null, queue: [], length: 0 };
+        return this.createEmptyQueueResponse();
       }
 
       return {
@@ -415,12 +433,12 @@ class YouTubeAPI {
       };
     } catch (error) {
       console.error('getQueue error:', error.message);
-      return { current: null, queue: [], length: 0 };
+      return this.createEmptyQueueResponse();
     }
   }
 
   disconnect() {
-    return { success: true, message: 'Disconnected' };
+    return this.createResponse(true, 'Disconnected');
   }
 
 }

@@ -37,7 +37,8 @@ class YouTubeMusicDiscordBot {
       { name: 'stop', description: 'Stop playback and clear queue' },
       { name: 'join', description: 'Join your voice channel' },
       { name: 'leave', description: 'Leave the voice channel' },
-      { name: 'debug', description: 'Show bot system status' }
+      { name: 'debug', description: 'Show bot system status' },
+      { name: 'hosting', description: 'Show hosting compatibility info' }
     ];
 
     this.commandsData = commands.map(cmd => {
@@ -190,7 +191,8 @@ class YouTubeMusicDiscordBot {
       'stop': () => this.handleStop(interaction),
       'join': () => this.handleJoin(interaction),
       'leave': () => this.handleLeave(interaction),
-      'debug': () => this.handleDebug(interaction)
+      'debug': () => this.handleDebug(interaction),
+      'hosting': () => this.handleHosting(interaction)
     };
 
     const handler = handlers[command];
@@ -206,7 +208,7 @@ class YouTubeMusicDiscordBot {
     const voiceChannel = member?.voice?.channel;
     
     if (!voiceChannel) {
-      await this.sendReply(interaction, '❌ You need to be in a voice channel to use this command!');
+      await this.sendReply(interaction, '❌ You must be in a voice channel to use this command!');
       return null;
     }
 
@@ -337,7 +339,9 @@ class YouTubeMusicDiscordBot {
           this.updatePresence(`🎵 ${result.track.title}`);
         }
       } else {
-        if (result.message.includes('YouTube blocked access')) {
+        if (result.message.includes('Railway Hosting Limitation')) {
+          await this.sendReply(interaction, result.message);
+        } else if (result.message.includes('YouTube blocked access')) {
           await this.sendReply(interaction, `🚫 **YouTube Access Blocked**\n\n${result.message}\n\n💡 **Alternative Solutions:**\n• Try different search terms\n• Use specific song titles\n• Consider self-hosting on a VPS`);
         } else {
           await this.sendReply(interaction, `❌ ${result.message}`);
@@ -468,6 +472,30 @@ class YouTubeMusicDiscordBot {
                 `**Memory Usage:** ${memory} MB\n` +
                 `**Environment:** ${process.env.NODE_ENV || 'development'}\n` +
                 `**Servers:** ${this.client.guilds.cache.size}`
+      });
+    });
+  }
+
+  async handleHosting(interaction) {
+    await this.executeWithErrorHandling(interaction, async () => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const platform = isProduction ? 'Railway (Production)' : 'Local Development';
+      
+      const compatibilityStatus = isProduction 
+        ? '❌ Limited - YouTube streaming blocked' 
+        : '✅ Full compatibility';
+      
+      const recommendations = isProduction 
+        ? '🏭 **Railway Limitations:**\n• YouTube blocks container IP ranges\n• Real-time audio streaming restrictions\n\n🔧 **Recommended Solutions:**\n• **VPS Hosting**: DigitalOcean ($5/month)\n• **AWS EC2**: t2.micro free tier\n• **Self-Hosting**: Run on your computer\n• **Alternative**: Try Heroku with proxy'
+        : '🏠 **Local Development:**\nFull YouTube streaming available';
+
+      await interaction.editReply({
+        content: '🏢 **Hosting Compatibility Report**\n\n' +
+                `**Platform:** ${platform}\n` +
+                `**Music Streaming:** ${compatibilityStatus}\n` +
+                `**Node.js:** ${process.version}\n\n` +
+                `${recommendations}\n\n` +
+                '📚 **Migration Guide:** https://github.com/nickgriff99/discord-bot#deployment'
       });
     });
   }
