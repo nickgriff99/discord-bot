@@ -110,20 +110,34 @@ class YouTubeMusicDiscordBot {
         await this.handleCommand(interaction);
       } catch (error) {
         logger.error(`Error handling command ${command}:`, error.message);
-        await this.sendErrorResponse(interaction, 'There was an error executing this command!');
+        
+        if (!interaction.replied && !interaction.deferred) {
+          await this.sendErrorResponse(interaction, 'There was an error executing this command!');
+        } else if (interaction.deferred) {
+          try {
+            await interaction.editReply({ content: 'There was an error executing this command!' });
+          } catch (editError) {
+            logger.error('Failed to edit deferred reply:', editError.message);
+          }
+        }
       }
     });
   }
 
   async sendErrorResponse(interaction, message) {
     try {
+      const responseOptions = { 
+        content: message, 
+        flags: 64
+      };
+      
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: message, ephemeral: true });
+        await interaction.followUp(responseOptions);
       } else {
-        await interaction.reply({ content: message, ephemeral: true });
+        await interaction.reply(responseOptions);
       }
     } catch (interactionError) {
-      logger.error('Failed to send error message to user:', interactionError);
+      logger.error('Failed to send error message to user:', interactionError.message);
     }
   }
 
@@ -148,7 +162,7 @@ class YouTubeMusicDiscordBot {
     if (handler) {
       await handler();
     } else {
-      await interaction.reply({ content: 'Unknown command!', ephemeral: true });
+      await interaction.reply({ content: 'Unknown command!', flags: 64 });
     }
   }
 
@@ -276,7 +290,7 @@ class YouTubeMusicDiscordBot {
     const query = sanitizeInput(interaction.options.getString('query'));
     
     if (!query) {
-      await interaction.reply({ content: 'Please provide a valid song name or URL!', ephemeral: true });
+      await interaction.reply({ content: 'Please provide a valid song name or URL!', flags: 64 });
       return;
     }
 

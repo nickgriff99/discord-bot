@@ -40,7 +40,12 @@ class YouTubeAPI {
         
         console.log('Creating DisTube with minimal configuration...');
         this.distube = new DisTube(client, {
-          plugins: [new YtDlpPlugin()]
+          plugins: [new YtDlpPlugin({
+            ffmpegPath: ffmpegPath
+          })],
+          ffmpeg: {
+            path: ffmpegPath
+          }
         });
         
         console.log('✅ DisTube instance created successfully');
