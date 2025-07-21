@@ -40,18 +40,7 @@ class YouTubeAPI {
         
         console.log('Creating DisTube with minimal configuration...');
         this.distube = new DisTube(client, {
-          plugins: [new YtDlpPlugin({
-            update: false,
-            parallel: true,
-            streamOptions: {
-              highWaterMark: 1024 * 1024 * 32,
-              quality: 'highestaudio'
-            }
-          })],
-          ffmpeg: {
-            path: ffmpegPath
-          },
-          streamType: 0
+          plugins: [new YtDlpPlugin()]
         });
         
         console.log('✅ DisTube instance created successfully');
@@ -83,12 +72,9 @@ class YouTubeAPI {
         console.log('🕐 Audio resource duration:', queue.voice?.audioResource?.playbackDuration);
         
         if (!queue.playing && queue.songs.length > 0) {
-          console.log('🔄 Song failed to play, attempting retry...');
-          try {
-            this.distube.play(queue.voice.channel, song.url);
-          } catch (retryError) {
-            console.error('❌ Retry failed:', retryError.message);
-          }
+          console.log('⚠️ DIAGNOSIS: Audio streaming is failing immediately after creation');
+          console.log('🏥 This indicates Railway container cannot maintain real-time audio streams to Discord');
+          console.log('💡 Recommendation: Consider alternative hosting (VPS, dedicated server) for audio streaming');
         }
       }, 5000);
     });
@@ -108,8 +94,9 @@ class YouTubeAPI {
       console.log('Next songs in queue:', queue.songs?.length || 0);
       
       const playbackDuration = queue.voice?.audioResource?.playbackDuration;
-      if (playbackDuration < 5000) {
-        console.log('⚠️ Song finished too quickly, may have failed to stream properly');
+      if (!playbackDuration || playbackDuration < 5000) {
+        console.log('💀 CONFIRMED: Stream failed - played for < 5 seconds');
+        console.log('🐛 Issue: Railway containers cannot sustain Discord voice connections');
       }
     });
 
@@ -148,190 +135,149 @@ class YouTubeAPI {
           part: 'snippet',
           q: query,
           type: 'video',
-          maxResults: 1,
+          maxResults: 5,
           videoCategoryId: '10',
           order: 'relevance',
           safeSearch: 'none',
           videoEmbeddable: 'true',
-          videoSyndicated: 'true'
+          videoSyndicated: 'true',
+          videoDuration: 'any',
+          fields: 'items(id/videoId,snippet(title,channelTitle))'
         }),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Search timeout')), 30000)
+          setTimeout(() => reject(new Error('Search timeout')), 10000)
         )
       ]);
 
-      if (response.data.items.length === 0) {
+      if (!response.data.items?.length) {
         return null;
       }
 
       const item = response.data.items[0];
-      const result = {
+      return {
         videoId: item.id.videoId,
         title: item.snippet.title,
         channel: item.snippet.channelTitle,
         url: `https://www.youtube.com/watch?v=${item.id.videoId}`
       };
-
-      return result;
     } catch (error) {
-      console.error('YouTube search error:', error);
+      console.error('YouTube search error:', error.message);
       return null;
     }
   }
 
   async play(interaction, query = null) {
     try {
-      console.log('Play command called. DisTube status:', !!this.distube);
-      
       if (!this.distube) {
         console.log('DisTube not initialized, attempting emergency initialization...');
-        
-        if (interaction && interaction.client) {
-          try {
-            await this.initializeDistube(interaction.client);
-            
-            if (!this.distube) {
-              console.log('Emergency initialization failed - DisTube still null');
-              return { success: false, message: 'Music system initialization failed. Please try again or contact support.' };
-            }
-            
-            console.log('Emergency initialization successful, waiting 2 seconds...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } catch (initError) {
-            console.error('Emergency initialization error:', initError);
-            return { success: false, message: 'Music system initialization failed. Please try again or contact support.' };
+        if (interaction?.client) {
+          await this.initializeDistube(interaction.client);
+          if (!this.distube) {
+            return { success: false, message: 'Music system initialization failed. Please try again.' };
           }
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-          return { success: false, message: 'Music system not ready. Please try again or contact support.' };
+          return { success: false, message: 'Music system not ready. Please try again.' };
         }
       }
 
-      console.log('DisTube is ready, processing play command...');
-
-      if (query) {
-        const track = await this.searchYouTube(query);
-        
-        if (!track) {
-          return { success: false, message: 'No results found' };
-        }
-        
-        let currentQueue = null;
-        let wasPlaying = false;
-        
-        try {
-          currentQueue = this.distube.getQueue(interaction.guildId);
-          wasPlaying = currentQueue && currentQueue.songs && currentQueue.songs.length > 0 && !currentQueue.stopped;
-          console.log('Queue check completed. Was playing:', wasPlaying);
-        } catch (error) {
-          console.log('Queue check error:', error.message);
-          wasPlaying = false;
-        }
-        
-        console.log('Starting DisTube play...');
-        await Promise.race([
-          this.distube.play(interaction.member.voice.channel, track.url, {
-            textChannel: interaction.channel,
-            member: interaction.member
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Play timeout - try again')), 15000)
-          )
-        ]);
-        
-        const message = wasPlaying 
-          ? `Added to queue: ${track.title}` 
-          : `Now playing: ${track.title}`;
-        
-        console.log('Play command completed successfully');
-        return { 
-          success: true, 
-          track: track,
-          message: message,
-          addedToQueue: wasPlaying
-        };
-        
-      } else {
+      if (!query) {
         return { success: false, message: 'No track to play' };
       }
+
+      const track = await this.searchYouTube(query);
+      if (!track) {
+        return { success: false, message: 'No results found for your search' };
+      }
+
+      const currentQueue = this.distube.getQueue(interaction.guildId);
+      const wasPlaying = currentQueue?.songs?.length > 0 && !currentQueue.stopped;
+
+      await Promise.race([
+        this.distube.play(interaction.member.voice.channel, track.url, {
+          textChannel: interaction.channel,
+          member: interaction.member
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Play timeout - try again')), 15000)
+        )
+      ]);
+
+      const message = wasPlaying 
+        ? `Added to queue: ${track.title}` 
+        : `Now playing: ${track.title}`;
+
+      return { 
+        success: true, 
+        track,
+        message,
+        addedToQueue: wasPlaying
+      };
     } catch (error) {
-      console.error('Play error:', error);
+      console.error('Play error:', error.message);
       return { success: false, message: `Error playing track: ${error.message}` };
     }
   }
 
-  pause(guildId) {
-    try {
-      if (guildId) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue && !queue.paused) {
-          this.distube.pause(guildId);
-          return { success: true, message: 'Paused' };
-        }
-      }
-      return { success: false, message: 'Nothing is playing' };
-    } catch {
-      return { success: false, message: 'Nothing is playing' };
+  executeQueueAction(guildId, action, successMessage, errorMessage) {
+    if (!guildId || !this.distube) {
+      return { success: false, message: errorMessage };
     }
+    
+    try {
+      const queue = this.distube.getQueue(guildId);
+      if (!queue) {
+        return { success: false, message: errorMessage };
+      }
+      
+      switch (action) {
+      case 'pause':
+        if (queue.paused) return { success: false, message: 'Already paused' };
+        this.distube.pause(guildId);
+        break;
+      case 'resume':
+        if (!queue.paused) return { success: false, message: 'Not paused' };
+        this.distube.resume(guildId);
+        break;
+      case 'stop':
+        this.distube.stop(guildId);
+        break;
+      case 'skip':
+        if (queue.songs.length <= 1) return { success: false, message: 'No next song in queue' };
+        this.distube.skip(guildId);
+        break;
+      case 'previous':
+        this.distube.previous(guildId);
+        break;
+      default:
+        return { success: false, message: 'Invalid action' };
+      }
+      
+      return { success: true, message: successMessage };
+    } catch (error) {
+      console.error(`Queue action error (${action}):`, error.message);
+      return { success: false, message: errorMessage };
+    }
+  }
+
+  pause(guildId) {
+    return this.executeQueueAction(guildId, 'pause', 'Paused', 'Nothing is playing');
   }
 
   resume(guildId) {
-    try {
-      if (guildId) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue && queue.paused) {
-          this.distube.resume(guildId);
-          return { success: true, message: 'Resumed' };
-        }
-      }
-      return { success: false, message: 'Nothing is paused' };
-    } catch {
-      return { success: false, message: 'Nothing is paused' };
-    }
+    return this.executeQueueAction(guildId, 'resume', 'Resumed', 'Nothing is paused');
   }
 
   stop(guildId) {
-    try {
-      if (guildId) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue) {
-          this.distube.stop(guildId);
-          return { success: true, message: 'Stopped' };
-        }
-      }
-      return { success: false, message: 'Nothing is playing' };
-    } catch {
-      return { success: false, message: 'Nothing is playing' };
-    }
+    return this.executeQueueAction(guildId, 'stop', 'Stopped', 'Nothing is playing');
   }
 
   skip(guildId) {
-    try {
-      if (guildId) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue && queue.songs.length > 1) {
-          this.distube.skip(guildId);
-          return { success: true, message: 'Skipped to next song' };
-        }
-      }
-      return { success: false, message: 'No next song in queue' };
-    } catch {
-      return { success: false, message: 'No next song in queue' };
-    }
+    return this.executeQueueAction(guildId, 'skip', 'Skipped to next song', 'No next song in queue');
   }
 
   previous(guildId) {
-    try {
-      if (guildId) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue) {
-          this.distube.previous(guildId);
-          return { success: true, message: 'Playing previous song' };
-        }
-      }
-      return { success: false, message: 'No previous song' };
-    } catch {
-      return { success: false, message: 'No previous song' };
-    }
+    return this.executeQueueAction(guildId, 'previous', 'Playing previous song', 'No previous song');
   }
 
   setVolume(guildId, volume) {
@@ -347,59 +293,60 @@ class YouTubeAPI {
   }
 
   getCurrentTrack(guildId) {
-    try {
-      if (guildId) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue && queue.songs[0]) {
-          const song = queue.songs[0];
-          return {
-            track: {
-              title: song.name,
-              channel: song.uploader?.name || 'Unknown',
-              url: song.url
-            },
-            isPlaying: !queue.paused,
-            queue: queue.songs.length,
-            volume: queue.volume || this.volume,
-            repeatMode: this.repeatMode
-          };
-        }
-      }
-    } catch {
+    if (!guildId || !this.distube) {
+      return { track: null, isPlaying: false, queue: 0, volume: this.volume, repeatMode: this.repeatMode };
     }
-    
-    return {
-      track: null,
-      isPlaying: false,
-      queue: 0,
-      volume: this.volume,
-      repeatMode: this.repeatMode
-    };
+
+    try {
+      const queue = this.distube.getQueue(guildId);
+      if (!queue?.songs?.[0]) {
+        return { track: null, isPlaying: false, queue: 0, volume: this.volume, repeatMode: this.repeatMode };
+      }
+
+      const song = queue.songs[0];
+      return {
+        track: {
+          title: song.name,
+          channel: song.uploader?.name || 'Unknown',
+          url: song.url
+        },
+        isPlaying: !queue.paused,
+        queue: queue.songs.length,
+        volume: queue.volume || this.volume,
+        repeatMode: this.repeatMode
+      };
+    } catch (error) {
+      console.error('getCurrentTrack error:', error.message);
+      return { track: null, isPlaying: false, queue: 0, volume: this.volume, repeatMode: this.repeatMode };
+    }
   }
 
   getQueue(guildId) {
-    try {
-      if (guildId && this.distube) {
-        const queue = this.distube.getQueue(guildId);
-        if (queue && queue.songs && queue.songs.length > 0) {
-          return {
-            current: queue.songs[0] ? {
-              title: queue.songs[0].name,
-              channel: queue.songs[0].uploader?.name || 'Unknown'
-            } : null,
-            queue: queue.songs.slice(1).map(song => ({
-              title: song.name,
-              channel: song.uploader?.name || 'Unknown'
-            })),
-            length: queue.songs.length
-          };
-        }
-      }
-    } catch (error) {
-      console.log('Queue access error:', error.message);
+    if (!guildId || !this.distube) {
+      return { current: null, queue: [], length: 0 };
     }
-    
-    return { current: null, queue: [], length: 0 };
+
+    try {
+      const queue = this.distube.getQueue(guildId);
+      if (!queue?.songs?.length) {
+        return { current: null, queue: [], length: 0 };
+      }
+
+      return {
+        current: {
+          title: queue.songs[0].name,
+          channel: queue.songs[0].uploader?.name || 'Unknown'
+        },
+        queue: queue.songs.slice(1).map(song => ({
+          title: song.name,
+          channel: song.uploader?.name || 'Unknown'
+        })),
+        length: queue.songs.length
+      };
+    } catch (error) {
+      console.error('getQueue error:', error.message);
+      return { current: null, queue: [], length: 0 };
+    }
   }
 
   disconnect() {
