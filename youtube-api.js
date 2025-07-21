@@ -38,7 +38,8 @@ class YouTubeAPI {
       try {
         console.log('Starting DisTube initialization...');
         console.log('Node.js version:', process.version);
-        console.log('Environment:', process.env.NODE_ENV);
+        console.log('🎵 DisTube initialized for VPS hosting');
+        console.log('🔧 YtDlpPlugin enabled for YouTube streaming');
         
         const ffmpegPath = ffmpegStatic || 'ffmpeg';
         console.log('Initializing DisTube with ffmpeg path:', ffmpegPath);
@@ -56,7 +57,7 @@ class YouTubeAPI {
         
         process.env.FFMPEG_PATH = ffmpegPath;
         
-        console.log('Creating DisTube with Railway-optimized configuration...');
+        console.log('Creating DisTube with optimized configuration...');
         
         const ytDlpOptions = {
           ffmpegPath: ffmpegPath,
@@ -74,17 +75,10 @@ class YouTubeAPI {
           }
         };
 
-        if (process.env.NODE_ENV === 'production') {
-          console.log('🏭 Production mode: Disabling YtDlpPlugin due to Railway limitations');
-          this.distube = new DisTube(client, {
-            ffmpeg: { path: ffmpegPath }
-          });
-        } else {
-          this.distube = new DisTube(client, {
-            plugins: [new YtDlpPlugin(ytDlpOptions)],
-            ffmpeg: { path: ffmpegPath }
-          });
-        }
+        this.distube = new DisTube(client, {
+          plugins: [new YtDlpPlugin(ytDlpOptions)],
+          ffmpeg: { path: ffmpegPath }
+        });
         
         console.log('✅ DisTube instance created successfully');
         this.setupDisTubeEvents();
@@ -115,9 +109,8 @@ class YouTubeAPI {
         console.log('🕐 Audio resource duration:', queue.voice?.audioResource?.playbackDuration);
         
         if (!queue.playing && queue.songs.length > 0) {
-          console.log('⚠️ DIAGNOSIS: Audio streaming is failing immediately after creation');
-          console.log('🏥 This indicates Railway container cannot maintain real-time audio streams to Discord');
-          console.log('💡 Recommendation: Consider alternative hosting (VPS, dedicated server) for audio streaming');
+          console.log('⚠️ DIAGNOSIS: Audio streaming may be having issues');
+          console.log('� Checking network connectivity and YouTube access');
         }
       }, 5000);
     });
@@ -139,7 +132,7 @@ class YouTubeAPI {
       const playbackDuration = queue.voice?.audioResource?.playbackDuration;
       if (!playbackDuration || playbackDuration < 5000) {
         console.log('💀 CONFIRMED: Stream failed - played for < 5 seconds');
-        console.log('🐛 Issue: Railway containers cannot sustain Discord voice connections');
+        console.log('🐛 Issue: Network or YouTube connectivity problem');
       }
     });
 
@@ -228,78 +221,43 @@ class YouTubeAPI {
         return this.createResponse(false, 'No track to play');
       }
 
-      if (process.env.NODE_ENV === 'production') {
-        return await this.playProductionMode(interaction, query);
-      } else {
-        return await this.playDevelopmentMode(interaction, query);
+      const track = await this.searchYouTube(query);
+      if (!track) {
+        return this.createResponse(false, 'No results found for your search');
+      }
+
+      const currentQueue = this.distube.getQueue(interaction.guildId);
+      const wasPlaying = currentQueue?.songs?.length > 0 && !currentQueue.stopped;
+
+      try {
+        await Promise.race([
+          this.distube.play(interaction.member.voice.channel, track.url, {
+            textChannel: interaction.channel,
+            member: interaction.member
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
+          )
+        ]);
+
+        const message = wasPlaying 
+          ? `Added to queue: ${track.title}` 
+          : `Now playing: ${track.title}`;
+
+        return this.createResponse(true, message, { track, addedToQueue: wasPlaying });
+      } catch (playError) {
+        if (playError.message.includes('Sign in to confirm') || 
+            playError.message.includes('bot') ||
+            playError.message.includes('YTDLP_ERROR')) {
+          
+          return this.createResponse(false, `❌ YouTube access temporarily blocked for "${track.title}". Try a different song or wait a moment.`);
+        }
+        throw playError;
       }
     } catch (error) {
       console.error('Play error:', error.message);
       return this.createResponse(false, `Error playing track: ${error.message}`);
     }
-  }
-
-  async playProductionMode(interaction, query) {
-    console.log('🏭 Production mode: YouTube streaming not available on Railway');
-    
-    const track = await this.searchYouTube(query);
-    if (!track) {
-      return this.createResponse(false, 'No results found for your search');
-    }
-
-    return {
-      success: false,
-      message: `🚫 Railway Hosting Limitation: Cannot stream "${track.title}" due to YouTube bot detection.\n\n📋 **Solutions:**\n• **VPS Hosting**: Deploy on DigitalOcean, Linode, or AWS EC2\n• **Local Hosting**: Run bot on your computer\n• **Alternative Platforms**: Try Heroku with proxy add-ons\n\n🔗 **Direct Link**: ${track.url}`
-    };
-  }
-
-  async playDevelopmentMode(interaction, query) {
-    const track = await this.searchYouTube(query);
-    if (!track) {
-      return this.createResponse(false, 'No results found for your search');
-    }
-
-    const currentQueue = this.distube.getQueue(interaction.guildId);
-    const wasPlaying = currentQueue?.songs?.length > 0 && !currentQueue.stopped;
-
-    try {
-      await Promise.race([
-        this.distube.play(interaction.member.voice.channel, track.url, {
-          textChannel: interaction.channel,
-          member: interaction.member
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
-        )
-      ]);
-
-      const message = wasPlaying 
-        ? `Added to queue: ${track.title}` 
-        : `Now playing: ${track.title}`;
-
-      return this.createResponse(true, message, { track, addedToQueue: wasPlaying });
-    } catch (playError) {
-      if (playError.message.includes('Sign in to confirm') || 
-          playError.message.includes('bot') ||
-          playError.message.includes('YTDLP_ERROR')) {
-        
-        return await this.handleYouTubeBlocked(track);
-      }
-      throw playError;
-    }
-  }
-
-  async handleYouTubeBlocked(track) {
-    console.log('🚫 YouTube blocked access, implementing fallback...');
-    
-    if (process.env.NODE_ENV === 'production') {
-      return {
-        success: false,
-        message: `❌ YouTube blocked access to "${track.title}". This is a hosting limitation on Railway. Try:\n• Different search terms\n• Direct YouTube links`
-      };
-    }
-    
-    return this.createResponse(false, `❌ YouTube access blocked for "${track.title}". Try a different song.`);
   }
 
   executeQueueAction(guildId, action, successMessage, errorMessage) {
