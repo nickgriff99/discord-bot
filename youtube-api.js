@@ -39,18 +39,41 @@ class YouTubeAPI {
         process.env.FFMPEG_PATH = ffmpegPath;
         
         console.log('Creating DisTube with minimal configuration...');
+        const userAgents = [
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        ];
+        
+        const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+        
+        const ytDlpOptions = {
+          ffmpegPath: ffmpegPath,
+          update: false,
+          quality: 'highestaudio',
+          extractorArgs: {
+            'youtube': [
+              '--extractor-retries', '3',
+              '--retry-sleep-for-extractor', '5',
+              '--user-agent', randomUA,
+              '--referer', 'https://www.youtube.com/',
+              '--add-header', 'Accept-Language:en-US,en;q=0.9'
+            ]
+          }
+        };
+
+        if (process.env.NODE_ENV === 'production') {
+          ytDlpOptions.extractorArgs.youtube.push(
+            '--no-check-certificate',
+            '--geo-bypass',
+            '--age-limit', '0',
+            '--sleep-interval', '1',
+            '--max-sleep-interval', '5'
+          );
+        }
+
         this.distube = new DisTube(client, {
-          plugins: [new YtDlpPlugin({
-            ffmpegPath: ffmpegPath,
-            update: false,
-            quality: 'highestaudio',
-            extractorArgs: {
-              'youtube': [
-                '--extractor-retries', '3',
-                '--retry-sleep-for-extractor', '5'
-              ]
-            }
-          })],
+          plugins: [new YtDlpPlugin(ytDlpOptions)],
           ffmpeg: {
             path: ffmpegPath
           }
@@ -206,38 +229,64 @@ class YouTubeAPI {
       const currentQueue = this.distube.getQueue(interaction.guildId);
       const wasPlaying = currentQueue?.songs?.length > 0 && !currentQueue.stopped;
 
-      await Promise.race([
-        this.distube.play(interaction.member.voice.channel, track.url, {
-          textChannel: interaction.channel,
-          member: interaction.member
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
-        )
-      ]);
+      try {
+        await Promise.race([
+          this.distube.play(interaction.member.voice.channel, track.url, {
+            textChannel: interaction.channel,
+            member: interaction.member
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
+          )
+        ]);
 
-      const message = wasPlaying 
-        ? `Added to queue: ${track.title}` 
-        : `Now playing: ${track.title}`;
+        const message = wasPlaying 
+          ? `Added to queue: ${track.title}` 
+          : `Now playing: ${track.title}`;
 
-      return { 
-        success: true, 
-        track,
-        message,
-        addedToQueue: wasPlaying
-      };
+        return { 
+          success: true, 
+          track,
+          message,
+          addedToQueue: wasPlaying
+        };
+      } catch (playError) {
+        if (playError.message.includes('Sign in to confirm') || 
+            playError.message.includes('bot') ||
+            playError.message.includes('YTDLP_ERROR')) {
+          
+          return await this.handleYouTubeBlocked(track);
+        }
+        throw playError;
+      }
     } catch (error) {
       console.error('Play error:', error.message);
       
       if (error.message.includes('Sign in to confirm') || error.message.includes('bot')) {
         return { 
           success: false, 
-          message: 'YouTube access blocked on this server. This is a hosting limitation.' 
+          message: 'YouTube blocked this server. Try a different song or use a direct YouTube link.' 
         };
       }
       
       return { success: false, message: `Error playing track: ${error.message}` };
     }
+  }
+
+  async handleYouTubeBlocked(track) {
+    console.log('🚫 YouTube blocked access, implementing fallback...');
+    
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        success: false,
+        message: `❌ YouTube blocked access to "${track.title}". This is a hosting limitation on Railway. Try:\n• Using a VPS/dedicated server\n• Different search terms\n• Direct YouTube links`
+      };
+    }
+    
+    return {
+      success: false,
+      message: `❌ YouTube access blocked for "${track.title}". Try a different song.`
+    };
   }
 
   executeQueueAction(guildId, action, successMessage, errorMessage) {

@@ -337,7 +337,11 @@ class YouTubeMusicDiscordBot {
           this.updatePresence(`🎵 ${result.track.title}`);
         }
       } else {
-        await this.sendReply(interaction, `❌ ${result.message}`);
+        if (result.message.includes('YouTube blocked access')) {
+          await this.sendReply(interaction, `🚫 **YouTube Access Blocked**\n\n${result.message}\n\n💡 **Alternative Solutions:**\n• Try different search terms\n• Use specific song titles\n• Consider self-hosting on a VPS`);
+        } else {
+          await this.sendReply(interaction, `❌ ${result.message}`);
+        }
       }
     });
   }
