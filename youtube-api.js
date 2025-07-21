@@ -41,7 +41,15 @@ class YouTubeAPI {
         console.log('Creating DisTube with minimal configuration...');
         this.distube = new DisTube(client, {
           plugins: [new YtDlpPlugin({
-            ffmpegPath: ffmpegPath
+            ffmpegPath: ffmpegPath,
+            update: false,
+            quality: 'highestaudio',
+            extractorArgs: {
+              'youtube': [
+                '--extractor-retries', '3',
+                '--retry-sleep-for-extractor', '5'
+              ]
+            }
           })],
           ffmpeg: {
             path: ffmpegPath
@@ -204,7 +212,7 @@ class YouTubeAPI {
           member: interaction.member
         }),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Play timeout - try again')), 15000)
+          setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
         )
       ]);
 
@@ -220,6 +228,14 @@ class YouTubeAPI {
       };
     } catch (error) {
       console.error('Play error:', error.message);
+      
+      if (error.message.includes('Sign in to confirm') || error.message.includes('bot')) {
+        return { 
+          success: false, 
+          message: 'YouTube access blocked on this server. This is a hosting limitation.' 
+        };
+      }
+      
       return { success: false, message: `Error playing track: ${error.message}` };
     }
   }

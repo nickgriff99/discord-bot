@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, ActivityType } from 'discord.js';
+import { Client, GatewayIntentBits, ActivityType, SlashCommandBuilder, REST, Routes } from 'discord.js';
 import { joinVoiceChannel, getVoiceConnection } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import YouTubeAPI from './youtube-api.js';
@@ -20,7 +20,49 @@ class YouTubeMusicDiscordBot {
 
     this.commands = new Map();
     this.youtubeAPI = new YouTubeAPI();
+    this.setupCommands();
     this.setupEvents();
+  }
+
+  setupCommands() {
+    const commands = [
+      { name: 'play', description: 'Play a song in the voice channel', options: [{ name: 'query', description: 'Song name or search query', type: 'STRING', required: true }] },
+      { name: 'pause', description: 'Pause the current song' },
+      { name: 'resume', description: 'Resume playback' },
+      { name: 'skip', description: 'Skip to the next song' },
+      { name: 'previous', description: 'Go to the previous song' },
+      { name: 'volume', description: 'Set the volume', options: [{ name: 'level', description: 'Volume level (0-100)', type: 'INTEGER', required: true, minValue: 0, maxValue: 100 }] },
+      { name: 'nowplaying', description: 'Show current song info' },
+      { name: 'queue', description: 'Show the current queue' },
+      { name: 'stop', description: 'Stop playback and clear queue' },
+      { name: 'join', description: 'Join your voice channel' },
+      { name: 'leave', description: 'Leave the voice channel' },
+      { name: 'debug', description: 'Show bot system status' }
+    ];
+
+    this.commandsData = commands.map(cmd => {
+      const builder = new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description);
+      
+      if (cmd.options) {
+        cmd.options.forEach(opt => {
+          if (opt.type === 'STRING') {
+            builder.addStringOption(option => 
+              option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false)
+            );
+          } else if (opt.type === 'INTEGER') {
+            builder.addIntegerOption(option => {
+              const intOption = option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false);
+              if (opt.minValue !== undefined) intOption.setMinValue(opt.minValue);
+              if (opt.maxValue !== undefined) intOption.setMaxValue(opt.maxValue);
+              return intOption;
+            });
+          }
+        });
+      }
+      
+      this.commands.set(cmd.name, builder);
+      return builder.toJSON();
+    });
   }
 
   setupEvents() {
@@ -75,13 +117,46 @@ class YouTubeMusicDiscordBot {
           await this.sendErrorResponse(interaction, 'There was an error executing this command!');
         } else if (interaction.deferred) {
           try {
-            await interaction.editReply({ content: 'There was an error executing this command!' });
+            await this.sendReply(interaction, 'There was an error executing this command!');
           } catch (editError) {
             logger.error('Failed to edit deferred reply:', editError.message);
           }
         }
       }
     });
+  }
+
+  async sendReply(interaction, content, ephemeral = false) {
+    const options = { content };
+    if (ephemeral) options.flags = 64;
+    
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply(options);
+    } else {
+      await interaction.reply(options);
+    }
+  }
+
+  async validateVoiceChannel(interaction) {
+    if (!interaction.member.voice.channel) {
+      await this.sendReply(interaction, '❌ You must be in a voice channel to use this command!');
+      return false;
+    }
+    return true;
+  }
+
+  async executeCommand(interaction, action) {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply();
+    }
+    
+    try {
+      await action();
+    } catch (error) {
+      logger.error(`Error in ${interaction.commandName}:`, error);
+      const actionText = interaction.commandName === 'play' ? 'playing' : 'executing';
+      await this.sendReply(interaction, `❌ An error occurred while ${actionText} the command.`);
+    }
   }
 
   async sendErrorResponse(interaction, message) {
@@ -131,7 +206,7 @@ class YouTubeMusicDiscordBot {
     const voiceChannel = member?.voice?.channel;
     
     if (!voiceChannel) {
-      await interaction.editReply({ content: '❌ You need to be in a voice channel to use this command!' });
+      await this.sendReply(interaction, '❌ You need to be in a voice channel to use this command!');
       return null;
     }
 
@@ -206,14 +281,7 @@ class YouTubeMusicDiscordBot {
   }
 
   async executeWithErrorHandling(interaction, operation) {
-    await interaction.deferReply();
-    
-    try {
-      await operation();
-    } catch (error) {
-      logger.error(`Error in ${interaction.commandName}:`, error);
-      await interaction.editReply({ content: `❌ An error occurred while ${interaction.commandName === 'play' ? 'playing' : 'executing'} the command.` });
-    }
+    await this.executeCommand(interaction, operation);
   }
 
   async handleMusicCommand(interaction, action) {
@@ -230,7 +298,7 @@ class YouTubeMusicDiscordBot {
         };
         
         const message = action === 'stop' ? 'Stopped playback and cleared queue' : result.message;
-        await interaction.editReply({ content: `${actionEmojis[action] || '✅'} ${message}` });
+        await this.sendReply(interaction, `${actionEmojis[action] || '✅'} ${message}`);
         
         if (action === 'resume' || action === 'skip' || action === 'previous') {
           const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
@@ -241,7 +309,7 @@ class YouTubeMusicDiscordBot {
           this.updatePresence('🎵 Ready to play music');
         }
       } else {
-        await interaction.editReply({ content: `❌ ${result.message}` });
+        await this.sendReply(interaction, `❌ ${result.message}`);
       }
     });
   }
@@ -254,29 +322,22 @@ class YouTubeMusicDiscordBot {
       return;
     }
 
-    await this.executeWithErrorHandling(interaction, async () => {
-      if (!interaction.member.voice.channel) {
-        await interaction.editReply({ content: '❌ You must be in a voice channel to play music!' });
-        return;
-      }
+    await this.executeCommand(interaction, async () => {
+      if (!await this.validateVoiceChannel(interaction)) return;
 
-      await interaction.editReply({ content: '🔍 Searching for your song...' });
+      await this.sendReply(interaction, '🔍 Searching for your song...');
 
       const result = await this.youtubeAPI.play(interaction, query);
       
       if (result.success) {
         const emoji = result.addedToQueue ? '➕' : '🎵';
-        await interaction.editReply({
-          content: `${emoji} ${result.message}\n**Channel:** ${result.track.channel}`
-        });
+        await this.sendReply(interaction, `${emoji} ${result.message}\n**Channel:** ${result.track.channel}`);
         
         if (!result.addedToQueue) {
           this.updatePresence(`🎵 ${result.track.title}`);
         }
       } else {
-        await interaction.editReply({
-          content: `❌ ${result.message}`
-        });
+        await this.sendReply(interaction, `❌ ${result.message}`);
       }
     });
   }
@@ -304,9 +365,9 @@ class YouTubeMusicDiscordBot {
       const result = this.youtubeAPI.setVolume(interaction.guildId, level);
       
       if (result.success) {
-        await interaction.editReply({ content: `🔊 Volume set to ${result.volume}%` });
+        await this.sendReply(interaction, `🔊 Volume set to ${result.volume}%`);
       } else {
-        await interaction.editReply({ content: `❌ ${result.message}` });
+        await this.sendReply(interaction, `❌ ${result.message}`);
       }
     });
   }
@@ -319,11 +380,9 @@ class YouTubeMusicDiscordBot {
         const statusEmoji = current.isPlaying ? '🎵' : '⏸️';
         const repeatEmoji = current.repeatMode === 'track' ? '🔂' : current.repeatMode === 'queue' ? '🔁' : '';
         
-        await interaction.editReply({
-          content: `${statusEmoji} **Now Playing**\n**${current.track.title}**\nby *${current.track.channel}*\n\n🔊 Volume: ${current.volume}%\n${repeatEmoji} Repeat: ${current.repeatMode}\n📋 Queue: ${current.queue} songs`
-        });
+        await this.sendReply(interaction, `${statusEmoji} **Now Playing**\n**${current.track.title}**\nby *${current.track.channel}*\n\n🔊 Volume: ${current.volume}%\n${repeatEmoji} Repeat: ${current.repeatMode}\n📋 Queue: ${current.queue} songs`);
       } else {
-        await interaction.editReply({ content: '❌ No song is currently playing.' });
+        await this.sendReply(interaction, '❌ No song is currently playing.');
       }
     });
   }
@@ -348,9 +407,9 @@ class YouTubeMusicDiscordBot {
           message += '📋 Queue is empty';
         }
         
-        await interaction.editReply({ content: message });
+        await this.sendReply(interaction, message);
       } else {
-        await interaction.editReply({ content: '❌ Queue is empty.' });
+        await this.sendReply(interaction, '❌ Queue is empty.');
       }
     });
   }
@@ -360,21 +419,18 @@ class YouTubeMusicDiscordBot {
   }
 
   async handleJoin(interaction) {
-    await this.executeWithErrorHandling(interaction, async () => {
-      if (!interaction.member.voice.channel) {
-        await interaction.editReply({ content: '❌ You need to be in a voice channel!' });
-        return;
-      }
+    await this.executeCommand(interaction, async () => {
+      if (!await this.validateVoiceChannel(interaction)) return;
       
       try {
         const connection = getVoiceConnection(interaction.guild.id);
         if (connection) {
-          await interaction.editReply({ content: '✅ Already connected to voice channel!' });
+          await this.sendReply(interaction, '✅ Already connected to voice channel!');
         } else {
-          await interaction.editReply({ content: '✅ Use /play to join and start playing music!' });
+          await this.sendReply(interaction, '✅ Use /play to join and start playing music!');
         }
       } catch {
-        await interaction.editReply({ content: '❌ Failed to check voice connection status.' });
+        await this.sendReply(interaction, '❌ Failed to check voice connection status.');
       }
     });
   }
@@ -385,10 +441,10 @@ class YouTubeMusicDiscordBot {
       if (connection) {
         this.youtubeAPI.stop(interaction.guildId);
         connection.destroy();
-        await interaction.editReply({ content: '✅ Left voice channel!' });
+        await this.sendReply(interaction, '✅ Left voice channel!');
         this.updatePresence('🎵 Ready to play music');
       } else {
-        await interaction.editReply({ content: '❌ Not connected to a voice channel.' });
+        await this.sendReply(interaction, '❌ Not connected to a voice channel.');
       }
     });
   }
@@ -424,7 +480,28 @@ class YouTubeMusicDiscordBot {
   }
 
   async registerCommands() {
-    return;
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+
+    try {
+      logger.info('Clearing all existing commands...');
+
+      const route = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID
+        ? Routes.applicationCommands(process.env.DISCORD_CLIENT_ID)
+        : Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID);
+
+      await rest.put(route, { body: [] });
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      logger.info('Registering fresh commands...');
+      await rest.put(route, { body: this.commandsData });
+      
+      const scope = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID ? 'globally' : `for guild ${process.env.DISCORD_GUILD_ID}`;
+      logger.info(`Registered ${this.commandsData.length} commands ${scope}`);
+    } catch (error) {
+      logger.error('Command registration failed:', error);
+      throw error;
+    }
   }
 
   async start() {
@@ -445,6 +522,7 @@ class YouTubeMusicDiscordBot {
       process.exit(1);
     }
 
+    await this.registerCommands();
     await this.client.login(process.env.DISCORD_BOT_TOKEN);
   }
 }
