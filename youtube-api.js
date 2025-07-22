@@ -65,28 +65,27 @@ class YouTubeAPI {
           quality: 'highestaudio',
           extractorArgs: {
             'youtube': [
-              '--extractor-args', 'youtube:player_client=android_music,web',
-              '--extractor-args', 'youtube:player_skip=configs,webpage',
-              '--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11; en_US; Pixel 6) gzip',
-              '--add-header', 'X-YouTube-Client-Name:3',
-              '--add-header', 'X-YouTube-Client-Version:19.09.37',
-              '--format', 'bestaudio/best',
+              '--extractor-args', 'youtube:player_client=ios,web_music,android_creator',
+              '--extractor-args', 'youtube:player_skip=configs',
+              '--extractor-args', 'youtube:include_live_dash',
+              '--user-agent', 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)',
+              '--add-header', 'X-Youtube-Client-Name:5',
+              '--add-header', 'X-Youtube-Client-Version:19.29.1',
+              '--add-header', 'Origin:https://www.youtube.com',
+              '--add-header', 'Referer:https://www.youtube.com/',
+              '--format', 'bestaudio[ext=m4a]/bestaudio/best',
+              '--geo-bypass',
               '--no-check-certificate',
               '--no-playlist',
               '--extract-flat', 'false',
-              '--socket-timeout', '30',
-              '--retries', '5',
-              '--fragment-retries', '3',
+              '--socket-timeout', '20',
+              '--retries', '10',
+              '--fragment-retries', '10',
+              '--retry-sleep', 'linear=1:5:1',
               '--ignore-errors',
-              '--no-warnings'
+              '--no-warnings',
+              '--prefer-insecure'
             ]
-          },
-          requestOptions: {
-            headers: {
-              'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11; en_US; Pixel 6) gzip',
-              'X-YouTube-Client-Name': '3',
-              'X-YouTube-Client-Version': '19.09.37'
-            }
           }
         };
 
