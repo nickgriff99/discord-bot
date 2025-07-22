@@ -26,12 +26,12 @@ class YouTubeMusicDiscordBot {
 
   setupCommands() {
     const commands = [
-      { name: 'play', description: 'Play a song in the voice channel', options: [{ name: 'query', description: 'Song name or search query', type: 'STRING', required: true }] },
+      { name: 'play', description: 'Play a song in the voice channel', options: [{ name: 'query', description: 'Song name or search query', type: 3, required: true }] },
       { name: 'pause', description: 'Pause the current song' },
       { name: 'resume', description: 'Resume playback' },
       { name: 'skip', description: 'Skip to the next song' },
       { name: 'previous', description: 'Go to the previous song' },
-      { name: 'volume', description: 'Set the volume', options: [{ name: 'level', description: 'Volume level (0-100)', type: 'INTEGER', required: true, minValue: 0, maxValue: 100 }] },
+      { name: 'volume', description: 'Set the volume', options: [{ name: 'level', description: 'Volume level (0-100)', type: 4, required: true, minValue: 0, maxValue: 100 }] },
       { name: 'nowplaying', description: 'Show current song info' },
       { name: 'queue', description: 'Show the current queue' },
       { name: 'stop', description: 'Stop playback and clear queue' },
@@ -45,11 +45,11 @@ class YouTubeMusicDiscordBot {
       
       if (cmd.options) {
         cmd.options.forEach(opt => {
-          if (opt.type === 'STRING') {
+          if (opt.type === 3) { // STRING
             builder.addStringOption(option => 
               option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false)
             );
-          } else if (opt.type === 'INTEGER') {
+          } else if (opt.type === 4) { // INTEGER
             builder.addIntegerOption(option => {
               const intOption = option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false);
               if (opt.minValue !== undefined) intOption.setMinValue(opt.minValue);
