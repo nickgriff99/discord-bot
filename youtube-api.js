@@ -65,24 +65,33 @@ class YouTubeAPI {
           quality: 'highestaudio',
           extractorArgs: {
             'youtube': [
-              '--user-agent', 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
               '--referer', 'https://www.youtube.com/',
               '--add-header', 'Accept-Language:en-US,en;q=0.9',
               '--add-header', 'Accept-Encoding:gzip, deflate, br',
               '--add-header', 'DNT:1',
               '--add-header', 'Upgrade-Insecure-Requests:1',
-              '--client', 'android',
+              '--add-header', 'Sec-Ch-Ua:"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+              '--add-header', 'Sec-Ch-Ua-Mobile:?0',
+              '--add-header', 'Sec-Ch-Ua-Platform:"Windows"',
+              '--extractor-args', 'youtube:player_client=web,android',
+              '--extractor-args', 'youtube:skip=hls,dash',
+              '--format', 'best[height<=720]/best',
               '--no-check-certificate',
               '--prefer-free-formats',
               '--no-playlist',
               '--extract-flat', 'false',
               '--socket-timeout', '30',
-              '--retries', '3'
+              '--retries', '5',
+              '--fragment-retries', '5',
+              '--skip-unavailable-fragments',
+              '--ignore-errors'
             ]
           },
           requestOptions: {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
               'Accept-Language': 'en-US,en;q=0.9',
               'Accept-Encoding': 'gzip, deflate, br',
               'DNT': '1',
@@ -91,6 +100,9 @@ class YouTubeAPI {
               'Sec-Fetch-Mode': 'navigate',
               'Sec-Fetch-Site': 'none',
               'Sec-Fetch-User': '?1',
+              'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+              'Sec-Ch-Ua-Mobile': '?0',
+              'Sec-Ch-Ua-Platform': '"Windows"',
               'Cache-Control': 'max-age=0'
             }
           }
