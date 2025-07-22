@@ -36,28 +36,18 @@ class YouTubeAPI {
   async initializeDistube(client) {
     if (!this.distube) {
       try {
-        console.log('Starting DisTube initialization...');
-        console.log('Node.js version:', process.version);
-        console.log('🎵 DisTube initialized for VPS hosting');
-        console.log('🔧 YtDlpPlugin enabled for YouTube streaming');
-        
         const ffmpegPath = ffmpegStatic || 'ffmpeg';
-        console.log('Initializing DisTube with ffmpeg path:', ffmpegPath);
-        console.log('ffmpeg-static resolved to:', ffmpegPath);
         
         if (typeof ffmpegPath === 'string' && ffmpegPath !== 'ffmpeg') {
           const fs = await import('fs');
           try {
             fs.accessSync(ffmpegPath, fs.constants.F_OK);
-            console.log('✅ FFmpeg binary found and accessible');
           } catch (error) {
-            console.log('❌ FFmpeg binary not accessible:', error.message);
+            console.error('FFmpeg binary not accessible:', error.message);
           }
         }
         
         process.env.FFMPEG_PATH = ffmpegPath;
-        
-        console.log('Creating DisTube with optimized configuration...');
         
         const ytDlpOptions = {
           ffmpegPath: ffmpegPath,
@@ -94,87 +84,57 @@ class YouTubeAPI {
           ffmpeg: { path: ffmpegPath }
         });
         
-        console.log('✅ DisTube instance created successfully');
         this.setupDisTubeEvents();
-        console.log('✅ DisTube events configured');
-        console.log('✅ DisTube initialization completed successfully');
       } catch (error) {
-        console.error('❌ Failed to initialize DisTube:', error);
-        console.error('Error stack:', error.stack);
+        console.error('Failed to initialize DisTube:', error);
         this.distube = null;
         throw error;
       }
     } else {
-      console.log('DisTube already initialized');
     }
   }
 
   setupDisTubeEvents() {
-    this.distube.on('playSong', (queue, song) => {
-      console.log('🎵 Now playing:', song.name);
-      console.log('Song duration:', song.duration);
-      console.log('Song URL:', song.url);
-      console.log('Voice connection status:', queue.voice?.connection?.state?.status);
-      console.log('Audio resource state:', queue.voice?.audioResource?.playbackDuration);
-      
+    this.distube.on('playSong', (queue) => {
       setTimeout(() => {
-        console.log('🕐 5 seconds check - still playing?', queue.playing);
-        console.log('🕐 Current song:', queue.songs[0]?.name || 'none');
-        console.log('🕐 Audio resource duration:', queue.voice?.audioResource?.playbackDuration);
-        
         if (!queue.playing && queue.songs.length > 0) {
-          console.log('⚠️ DIAGNOSIS: Audio streaming may be having issues');
-          console.log('� Checking network connectivity and YouTube access');
+          console.log('Audio streaming may be having issues');
         }
       }, 5000);
     });
 
     this.distube.on('addSong', (queue, song) => {
-      console.log('➕ Added to queue:', song.name);
+      console.log('Added to queue:', song.name);
     });
 
     this.distube.on('finish', (queue) => {
-      console.log('🏁 Queue finished for guild:', queue.id);
-      console.log('Reason for finish - queue songs remaining:', queue.songs?.length || 0);
+      console.log('Queue finished for guild:', queue.id);
     });
 
-    this.distube.on('finishSong', (queue, song) => {
-      console.log('🎤 Song finished:', song.name);
-      console.log('Song played for duration:', queue.voice?.audioResource?.playbackDuration || 'unknown');
-      console.log('Next songs in queue:', queue.songs?.length || 0);
-      
+    this.distube.on('finishSong', (queue) => {
       const playbackDuration = queue.voice?.audioResource?.playbackDuration;
       if (!playbackDuration || playbackDuration < 5000) {
-        console.log('💀 CONFIRMED: Stream failed - played for < 5 seconds');
-        console.log('🐛 Issue: Network or YouTube connectivity problem');
+        console.log('Stream failed - played for < 5 seconds');
       }
     });
 
     this.distube.on('error', (channel, error) => {
-      console.error('❌ DisTube error:', error.message);
-      console.error('Error code:', error.errorCode);
-      console.error('Full error:', error);
+      console.error('DisTube error:', error.message);
       if (channel) {
         channel.send(`❌ Music error: ${error.message}`).catch(() => {});
       }
     });
 
     this.distube.on('disconnect', (queue) => {
-      console.log('🔌 DisTube disconnected from guild:', queue.id);
+      console.log('DisTube disconnected from guild:', queue.id);
     });
 
     this.distube.on('empty', (queue) => {
-      console.log('📭 Voice channel empty for guild:', queue.id);
+      console.log('Voice channel empty for guild:', queue.id);
     });
 
     this.distube.on('initQueue', (queue) => {
-      console.log('🎶 Queue initialized for guild:', queue.id);
-      console.log('Initial voice connection state:', queue.voice?.connection?.state?.status);
       queue.volume = this.volume;
-    });
-
-    this.distube.on('debug', (message) => {
-      console.log('🐛 DisTube debug:', message);
     });
   }
 
@@ -235,9 +195,20 @@ class YouTubeAPI {
         return this.createResponse(false, 'No track to play');
       }
 
-      const track = await this.searchYouTube(query);
-      if (!track) {
-        return this.createResponse(false, 'No results found for your search');
+      const isUrl = query.match(/^https?:\/\//);
+      let track = null;
+      
+      if (isUrl) {
+        track = { 
+          url: query, 
+          title: 'Direct URL', 
+          channel: 'Unknown' 
+        };
+      } else {
+        track = await this.searchYouTube(query);
+        if (!track) {
+          return this.createResponse(false, 'No results found for your search');
+        }
       }
 
       const currentQueue = this.distube.getQueue(interaction.guildId);
@@ -264,7 +235,14 @@ class YouTubeAPI {
             playError.message.includes('bot') ||
             playError.message.includes('YTDLP_ERROR')) {
           
-          return this.createResponse(false, `❌ YouTube access temporarily blocked for "${track.title}". Try a different song or wait a moment.`);
+          return this.createResponse(false, 
+            '❌ YouTube access is currently blocked.\n\n' +
+            '**Alternative options:**\n' +
+            '• Try SoundCloud URLs: `/play https://soundcloud.com/...`\n' +
+            '• Try Spotify URLs: `/play https://open.spotify.com/...`\n' +
+            '• Try direct audio URLs: `/play https://example.com/song.mp3`\n\n' +
+            'Unfortunately, YouTube has enhanced their bot detection and is blocking most automated access.'
+          );
         }
         throw playError;
       }

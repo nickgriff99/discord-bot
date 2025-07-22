@@ -45,11 +45,11 @@ class YouTubeMusicDiscordBot {
       
       if (cmd.options) {
         cmd.options.forEach(opt => {
-          if (opt.type === 3) { // STRING
+          if (opt.type === 3) {
             builder.addStringOption(option => 
               option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false)
             );
-          } else if (opt.type === 4) { // INTEGER
+          } else if (opt.type === 4) {
             builder.addIntegerOption(option => {
               const intOption = option.setName(opt.name).setDescription(opt.description).setRequired(opt.required || false);
               if (opt.minValue !== undefined) intOption.setMinValue(opt.minValue);
@@ -213,7 +213,6 @@ class YouTubeMusicDiscordBot {
     let connection = getVoiceConnection(interaction.guild.id);
     
     if (!connection) {
-      console.log('Creating new voice connection for guild:', interaction.guild.id);
       connection = joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: interaction.guild.id,
@@ -223,9 +222,7 @@ class YouTubeMusicDiscordBot {
       });
       
       connection.on('stateChange', (oldState, newState) => {
-        console.log(`Voice connection state changed: ${oldState.status} -> ${newState.status}`);
         if (newState.status === 'disconnected') {
-          console.log('Voice connection disconnected, destroying...');
           connection.destroy();
         }
       });
@@ -235,8 +232,6 @@ class YouTubeMusicDiscordBot {
       });
 
       try {
-        console.log('Waiting for voice connection to be ready...');
-        
         if (connection.state.status !== 'ready') {
           await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
@@ -244,14 +239,11 @@ class YouTubeMusicDiscordBot {
             }, 20000);
             
             const onStateChange = (_, newState) => {
-              console.log('Voice connection state changed to:', newState.status);
               if (newState.status === 'ready') {
-                console.log('Voice connection is now ready');
                 clearTimeout(timeout);
                 connection.off('stateChange', onStateChange);
                 resolve();
               } else if (newState.status === 'disconnected' || newState.status === 'destroyed') {
-                console.log('Voice connection failed');
                 clearTimeout(timeout);
                 connection.off('stateChange', onStateChange);
                 reject(new Error('Voice connection failed'));
@@ -260,21 +252,13 @@ class YouTubeMusicDiscordBot {
             
             connection.on('stateChange', onStateChange);
           });
-        } else {
-          console.log('Voice connection already ready');
         }
-        
-        console.log('Voice connection established successfully');
       } catch (error) {
-        if (connection.state.status === 'ready') {
-          console.log('Voice connection is actually ready despite error');
-        } else {
+        if (connection.state.status !== 'ready') {
           console.error('Voice connection failed:', error);
           throw error;
         }
       }
-    } else {
-      console.log('Using existing voice connection for guild:', interaction.guild.id);
     }
 
     return connection;
