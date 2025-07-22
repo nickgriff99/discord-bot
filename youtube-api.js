@@ -65,6 +65,13 @@ class YouTubeAPI {
           quality: 'highestaudio',
           extractorArgs: {
             'youtube': [
+              '--user-agent', 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+              '--referer', 'https://www.youtube.com/',
+              '--add-header', 'Accept-Language:en-US,en;q=0.9',
+              '--add-header', 'Accept-Encoding:gzip, deflate, br',
+              '--add-header', 'DNT:1',
+              '--add-header', 'Upgrade-Insecure-Requests:1',
+              '--client', 'android',
               '--no-check-certificate',
               '--prefer-free-formats',
               '--no-playlist',
@@ -72,6 +79,20 @@ class YouTubeAPI {
               '--socket-timeout', '30',
               '--retries', '3'
             ]
+          },
+          requestOptions: {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'DNT': '1',
+              'Upgrade-Insecure-Requests': '1',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'none',
+              'Sec-Fetch-User': '?1',
+              'Cache-Control': 'max-age=0'
+            }
           }
         };
 
