@@ -15,7 +15,7 @@ Simply invite the bot to your Discord server using this link:
 - `/previous` - Go to previous song
 - `/queue` - Show current queue
 - `/nowplaying` - Show current song info
-- `/volume <1-100>` - Set volume level
+- `/volume <1-100>` - Set volume level of bot
 - `/stop` - Stop playback and clear queue
 - `/join` - Join your voice channel
 - `/leave` - Leave voice channel
