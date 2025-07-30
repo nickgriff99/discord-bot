@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, ActivityType, SlashCommandBuilder, REST, Routes } from 'discord.js';
-import { joinVoiceChannel, getVoiceConnection } from '@discordjs/voice';
+import { getVoiceConnection } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import YouTubeAPI from './youtube-api.js';
 import { createLogger, createValidator, ValidationRules, sanitizeInput } from './utils.js';
@@ -14,7 +14,8 @@ class YouTubeMusicDiscordBot {
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.MessageContent
       ]
     });
 
@@ -26,18 +27,18 @@ class YouTubeMusicDiscordBot {
 
   setupCommands() {
     const commands = [
-      { name: 'play', description: 'Play a song in the voice channel', options: [{ name: 'query', description: 'Song name or search query', type: 'STRING', required: true }] },
-      { name: 'pause', description: 'Pause the current song' },
-      { name: 'resume', description: 'Resume playback' },
-      { name: 'skip', description: 'Skip to the next song' },
-      { name: 'previous', description: 'Go to the previous song' },
-      { name: 'volume', description: 'Set the volume', options: [{ name: 'level', description: 'Volume level (0-100)', type: 'INTEGER', required: true, minValue: 0, maxValue: 100 }] },
-      { name: 'nowplaying', description: 'Show current song info' },
-      { name: 'queue', description: 'Show the current queue' },
-      { name: 'stop', description: 'Stop playback and clear queue' },
-      { name: 'join', description: 'Join your voice channel' },
-      { name: 'leave', description: 'Leave the voice channel' },
-      { name: 'debug', description: 'Show bot system status' }
+      { name: 'play', description: 'CORRECT play a song in the voice channel', options: [{ name: 'query', description: 'Song name or search query', type: 'STRING', required: true }] },
+      { name: 'pause', description: 'CORRECT Pause the current song' },
+      { name: 'resume', description: 'CORRECT Resume playback' },
+      { name: 'skip', description: 'CORRECT Skip to the next song' },
+      { name: 'previous', description: 'CORRECT Go to the previous song' },
+      { name: 'volume', description: 'CORRECT Set the volume', options: [{ name: 'level', description: 'Volume level (0-100)', type: 'INTEGER', required: true, minValue: 0, maxValue: 100 }] },
+      { name: 'nowplaying', description: 'CORRECT Show current song info' },
+      { name: 'queue', description: 'CORRECT Show the current queue' },
+      { name: 'stop', description: 'CORRECT Stop playback and clear queue' },
+      { name: 'join', description: 'CORRECT Join your voice channel' },
+      { name: 'leave', description: 'CORRECT Leave the voice channel' },
+      { name: 'debug', description: 'CORRECT Show bot system status' }
     ];
 
     this.commandsData = commands.map(cmd => {
@@ -108,72 +109,51 @@ class YouTubeMusicDiscordBot {
       const command = interaction.commandName;
       logger.info(`Command: ${command} from ${interaction.user.tag} in ${interaction.guild?.name || 'DM'}`);
 
+      if (!interaction.guild) {
+        try {
+          await interaction.reply({ content: 'This bot only works in servers, not in DMs!', flags: 64 });
+        } catch (error) {
+          logger.error('Failed to respond to DM interaction:', error.message);
+        }
+        return;
+      }
+
       try {
         await this.handleCommand(interaction);
       } catch (error) {
-        logger.error(`Error handling command ${command}:`, error.message);
-        
-        if (!interaction.replied && !interaction.deferred) {
-          await this.sendErrorResponse(interaction, 'There was an error executing this command!');
-        } else if (interaction.deferred) {
-          try {
-            await this.sendReply(interaction, 'There was an error executing this command!');
-          } catch (editError) {
-            logger.error('Failed to edit deferred reply:', editError.message);
-          }
-        }
+        await this.handleInteractionError(interaction, error, command);
       }
     });
   }
 
-  async sendReply(interaction, content, ephemeral = false) {
-    const options = { content };
-    if (ephemeral) options.flags = 64;
+  async handleInteractionError(interaction, error, commandName) {
+    logger.error(`Error handling command ${commandName}:`, error.message);
     
-    if (interaction.replied || interaction.deferred) {
-      await interaction.editReply(options);
-    } else {
-      await interaction.reply(options);
+    try {
+      const errorMessage = 'There was an error executing this command!';
+      
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: errorMessage, flags: 64 });
+      } else if (interaction.deferred) {
+        await interaction.editReply({ content: errorMessage });
+      } else {
+        await interaction.followUp({ content: errorMessage, flags: 64 });
+      }
+    } catch (replyError) {
+      logger.error('Failed to send error response:', replyError.message);
     }
   }
 
   async validateVoiceChannel(interaction) {
     if (!interaction.member.voice.channel) {
-      await this.sendReply(interaction, '❌ You must be in a voice channel to use this command!');
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ You must be in a voice channel to use this command!', flags: 64 });
+      } else {
+        await interaction.editReply('❌ You must be in a voice channel to use this command!');
+      }
       return false;
     }
     return true;
-  }
-
-  async executeCommand(interaction, action) {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply();
-    }
-    
-    try {
-      await action();
-    } catch (error) {
-      logger.error(`Error in ${interaction.commandName}:`, error);
-      const actionText = interaction.commandName === 'play' ? 'playing' : 'executing';
-      await this.sendReply(interaction, `❌ An error occurred while ${actionText} the command.`);
-    }
-  }
-
-  async sendErrorResponse(interaction, message) {
-    try {
-      const responseOptions = { 
-        content: message, 
-        flags: 64
-      };
-      
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(responseOptions);
-      } else {
-        await interaction.reply(responseOptions);
-      }
-    } catch (interactionError) {
-      logger.error('Failed to send error message to user:', interactionError.message);
-    }
   }
 
   async handleCommand(interaction) {
@@ -201,119 +181,6 @@ class YouTubeMusicDiscordBot {
     }
   }
 
-  async getVoiceConnection(interaction) {
-    const member = interaction.member;
-    const voiceChannel = member?.voice?.channel;
-    
-    if (!voiceChannel) {
-      await this.sendReply(interaction, '❌ You must be in a voice channel to use this command!');
-      return null;
-    }
-
-    let connection = getVoiceConnection(interaction.guild.id);
-    
-    if (!connection) {
-      console.log('Creating new voice connection for guild:', interaction.guild.id);
-      connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: interaction.guild.id,
-        adapterCreator: interaction.guild.voiceAdapterCreator,
-        selfDeaf: false,
-        selfMute: false
-      });
-      
-      connection.on('stateChange', (oldState, newState) => {
-        console.log(`Voice connection state changed: ${oldState.status} -> ${newState.status}`);
-        if (newState.status === 'disconnected') {
-          console.log('Voice connection disconnected, destroying...');
-          connection.destroy();
-        }
-      });
-
-      connection.on('error', (error) => {
-        console.error('Voice connection error:', error);
-      });
-
-      try {
-        console.log('Waiting for voice connection to be ready...');
-        
-        if (connection.state.status !== 'ready') {
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error('Connection timeout'));
-            }, 20000);
-            
-            const onStateChange = (_, newState) => {
-              console.log('Voice connection state changed to:', newState.status);
-              if (newState.status === 'ready') {
-                console.log('Voice connection is now ready');
-                clearTimeout(timeout);
-                connection.off('stateChange', onStateChange);
-                resolve();
-              } else if (newState.status === 'disconnected' || newState.status === 'destroyed') {
-                console.log('Voice connection failed');
-                clearTimeout(timeout);
-                connection.off('stateChange', onStateChange);
-                reject(new Error('Voice connection failed'));
-              }
-            };
-            
-            connection.on('stateChange', onStateChange);
-          });
-        } else {
-          console.log('Voice connection already ready');
-        }
-        
-        console.log('Voice connection established successfully');
-      } catch (error) {
-        if (connection.state.status === 'ready') {
-          console.log('Voice connection is actually ready despite error');
-        } else {
-          console.error('Voice connection failed:', error);
-          throw error;
-        }
-      }
-    } else {
-      console.log('Using existing voice connection for guild:', interaction.guild.id);
-    }
-
-    return connection;
-  }
-
-  async executeWithErrorHandling(interaction, operation) {
-    await this.executeCommand(interaction, operation);
-  }
-
-  async handleMusicCommand(interaction, action) {
-    await this.executeWithErrorHandling(interaction, async () => {
-      const result = this.youtubeAPI[action](interaction.guildId);
-      
-      if (result.success) {
-        const actionEmojis = {
-          pause: '⏸️',
-          resume: '▶️',
-          skip: '⏭️',
-          previous: '⏮️',
-          stop: '⏹️'
-        };
-        
-        const message = action === 'stop' ? 'Stopped playback and cleared queue' : result.message;
-        await this.sendReply(interaction, `${actionEmojis[action] || '✅'} ${message}`);
-        
-        if (action === 'resume' || action === 'skip' || action === 'previous') {
-          const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
-          this.updatePresence(`🎵 ${current.track?.title || 'Playing'}`);
-        } else if (action === 'pause') {
-          this.updatePresence('⏸️ Paused');
-        } else if (action === 'stop') {
-          this.updatePresence('🎵 Ready to play music');
-        }
-      } else {
-        await this.sendReply(interaction, `❌ ${result.message}`);
-      }
-    });
-  }
-
   async handlePlay(interaction) {
     const query = sanitizeInput(interaction.options.getString('query'));
     
@@ -322,153 +189,195 @@ class YouTubeMusicDiscordBot {
       return;
     }
 
-    await this.executeCommand(interaction, async () => {
-      if (!await this.validateVoiceChannel(interaction)) return;
+    if (!await this.validateVoiceChannel(interaction)) return;
 
-      await this.sendReply(interaction, '🔍 Searching for your song...');
+    await interaction.deferReply();
 
+    try {
       const result = await this.youtubeAPI.play(interaction, query);
       
       if (result.success) {
         const emoji = result.addedToQueue ? '➕' : '🎵';
-        await this.sendReply(interaction, `${emoji} ${result.message}\n**Channel:** ${result.track.channel}`);
+        await interaction.editReply(`${emoji} ${result.message}\n**Channel:** ${result.track.channel}`);
         
         if (!result.addedToQueue) {
           this.updatePresence(`🎵 ${result.track.title}`);
         }
       } else {
-        if (result.message.includes('YouTube blocked access')) {
-          await this.sendReply(interaction, `🚫 **YouTube Access Blocked**\n\n${result.message}\n\n💡 **Alternative Solutions:**\n• Try different search terms\n• Use specific song titles\n• Consider checking your internet connection`);
-        } else {
-          await this.sendReply(interaction, `❌ ${result.message}`);
-        }
+        await interaction.editReply(`❌ ${result.message}`);
       }
-    });
+    } catch (error) {
+      logger.error('Error in play command:', error);
+      try {
+        await interaction.editReply('❌ An error occurred while playing the song.');
+      } catch (editError) {
+        logger.error('Failed to edit reply:', editError.message);
+      }
+    }
   }
 
   async handlePause(interaction) {
-    await this.handleMusicCommand(interaction, 'pause');
+    await interaction.deferReply();
+    const result = this.youtubeAPI.pause(interaction.guildId);
+    
+    if (result.success) {
+      await interaction.editReply('⏸️ Paused playback');
+      this.updatePresence('⏸️ Paused');
+    } else {
+      await interaction.editReply(`❌ ${result.message}`);
+    }
   }
 
   async handleResume(interaction) {
-    await this.handleMusicCommand(interaction, 'resume');
+    await interaction.deferReply();
+    const result = this.youtubeAPI.resume(interaction.guildId);
+    
+    if (result.success) {
+      await interaction.editReply('▶️ Resumed playback');
+      const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
+      this.updatePresence(`🎵 ${current.track?.title || 'Playing'}`);
+    } else {
+      await interaction.editReply(`❌ ${result.message}`);
+    }
   }
 
   async handleSkip(interaction) {
-    await this.handleMusicCommand(interaction, 'skip');
+    await interaction.deferReply();
+    const result = this.youtubeAPI.skip(interaction.guildId);
+    
+    if (result.success) {
+      await interaction.editReply('⏭️ Skipped to next song');
+      const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
+      this.updatePresence(`🎵 ${current.track?.title || 'Playing'}`);
+    } else {
+      await interaction.editReply(`❌ ${result.message}`);
+    }
   }
 
   async handlePrevious(interaction) {
-    await this.handleMusicCommand(interaction, 'previous');
+    await interaction.deferReply();
+    const result = this.youtubeAPI.previous(interaction.guildId);
+    
+    if (result.success) {
+      await interaction.editReply('⏮️ Playing previous song');
+      const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
+      this.updatePresence(`🎵 ${current.track?.title || 'Playing'}`);
+    } else {
+      await interaction.editReply(`❌ ${result.message}`);
+    }
   }
 
   async handleVolume(interaction) {
     const level = interaction.options.getInteger('level');
     
-    await this.executeWithErrorHandling(interaction, async () => {
-      const result = this.youtubeAPI.setVolume(interaction.guildId, level);
-      
-      if (result.success) {
-        await this.sendReply(interaction, `🔊 Volume set to ${result.volume}%`);
-      } else {
-        await this.sendReply(interaction, `❌ ${result.message}`);
-      }
-    });
+    await interaction.deferReply();
+    
+    const result = this.youtubeAPI.setVolume(interaction.guildId, level);
+    
+    if (result.success) {
+      await interaction.editReply(`🔊 Volume set to ${result.volume}%`);
+    } else {
+      await interaction.editReply(`❌ ${result.message}`);
+    }
   }
 
   async handleNowPlaying(interaction) {
-    await this.executeWithErrorHandling(interaction, async () => {
-      const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
+    await interaction.deferReply();
+    
+    const current = this.youtubeAPI.getCurrentTrack(interaction.guildId);
+    
+    if (current.track) {
+      const statusEmoji = current.isPlaying ? '🎵' : '⏸️';
+      const repeatEmoji = current.repeatMode === 'track' ? '🔂' : current.repeatMode === 'queue' ? '🔁' : '';
       
-      if (current.track) {
-        const statusEmoji = current.isPlaying ? '🎵' : '⏸️';
-        const repeatEmoji = current.repeatMode === 'track' ? '🔂' : current.repeatMode === 'queue' ? '🔁' : '';
-        
-        await this.sendReply(interaction, `${statusEmoji} **Now Playing**\n**${current.track.title}**\nby *${current.track.channel}*\n\n🔊 Volume: ${current.volume}%\n${repeatEmoji} Repeat: ${current.repeatMode}\n📋 Queue: ${current.queue} songs`);
-      } else {
-        await this.sendReply(interaction, '❌ No song is currently playing.');
-      }
-    });
+      await interaction.editReply(`${statusEmoji} **Now Playing**\n**${current.track.title}**\nby *${current.track.channel}*\n\n🔊 Volume: ${current.volume}%\n${repeatEmoji} Repeat: ${current.repeatMode}\n📋 Queue: ${current.queue} songs`);
+    } else {
+      await interaction.editReply('❌ No song is currently playing.');
+    }
   }
 
   async handleQueue(interaction) {
-    await this.executeWithErrorHandling(interaction, async () => {
-      const queueInfo = this.youtubeAPI.getQueue(interaction.guildId);
+    await interaction.deferReply();
+    
+    const queueInfo = this.youtubeAPI.getQueue(interaction.guildId);
+    
+    if (queueInfo.current) {
+      let message = `🎵 **Now Playing:**\n${queueInfo.current.title} by *${queueInfo.current.channel}*\n\n`;
       
-      if (queueInfo.current) {
-        let message = `🎵 **Now Playing:**\n${queueInfo.current.title} by *${queueInfo.current.channel}*\n\n`;
+      if (queueInfo.queue.length > 0) {
+        message += `📋 **Queue (${queueInfo.queue.length} songs):**\n`;
+        queueInfo.queue.slice(0, 10).forEach((track, index) => {
+          message += `${index + 1}. ${track.title} by *${track.channel}*\n`;
+        });
         
-        if (queueInfo.queue.length > 0) {
-          message += `📋 **Queue (${queueInfo.queue.length} songs):**\n`;
-          queueInfo.queue.slice(0, 10).forEach((track, index) => {
-            message += `${index + 1}. ${track.title} by *${track.channel}*\n`;
-          });
-          
-          if (queueInfo.queue.length > 10) {
-            message += `... and ${queueInfo.queue.length - 10} more songs`;
-          }
-        } else {
-          message += '📋 Queue is empty';
+        if (queueInfo.queue.length > 10) {
+          message += `... and ${queueInfo.queue.length - 10} more songs`;
         }
-        
-        await this.sendReply(interaction, message);
       } else {
-        await this.sendReply(interaction, '❌ Queue is empty.');
+        message += '📋 Queue is empty';
       }
-    });
+      
+      await interaction.editReply(message);
+    } else {
+      await interaction.editReply('❌ Queue is empty.');
+    }
   }
 
   async handleStop(interaction) {
-    await this.handleMusicCommand(interaction, 'stop');
+    await interaction.deferReply();
+    const result = this.youtubeAPI.stop(interaction.guildId);
+    
+    if (result.success) {
+      await interaction.editReply('⏹️ Stopped playback and cleared queue');
+      this.updatePresence('🎵 Ready to play music');
+    } else {
+      await interaction.editReply(`❌ ${result.message}`);
+    }
   }
 
   async handleJoin(interaction) {
-    await this.executeCommand(interaction, async () => {
-      if (!await this.validateVoiceChannel(interaction)) return;
-      
-      try {
-        const connection = getVoiceConnection(interaction.guild.id);
-        if (connection) {
-          await this.sendReply(interaction, '✅ Already connected to voice channel!');
-        } else {
-          await this.sendReply(interaction, '✅ Use /play to join and start playing music!');
-        }
-      } catch {
-        await this.sendReply(interaction, '❌ Failed to check voice connection status.');
-      }
-    });
+    if (!await this.validateVoiceChannel(interaction)) return;
+    
+    await interaction.deferReply();
+    
+    const connection = getVoiceConnection(interaction.guild.id);
+    if (connection) {
+      await interaction.editReply('✅ Already connected to voice channel!');
+    } else {
+      await interaction.editReply('✅ Use /play to join and start playing music!');
+    }
   }
 
   async handleLeave(interaction) {
-    await this.executeWithErrorHandling(interaction, async () => {
-      const connection = getVoiceConnection(interaction.guild.id);
-      if (connection) {
-        this.youtubeAPI.stop(interaction.guildId);
-        connection.destroy();
-        await this.sendReply(interaction, '✅ Left voice channel!');
-        this.updatePresence('🎵 Ready to play music');
-      } else {
-        await this.sendReply(interaction, '❌ Not connected to a voice channel.');
-      }
-    });
+    await interaction.deferReply();
+    
+    const connection = getVoiceConnection(interaction.guild.id);
+    if (connection) {
+      this.youtubeAPI.stop(interaction.guildId);
+      connection.destroy();
+      await interaction.editReply('✅ Left voice channel!');
+      this.updatePresence('🎵 Ready to play music');
+    } else {
+      await interaction.editReply('❌ Not connected to a voice channel.');
+    }
   }
 
   async handleDebug(interaction) {
-    await this.executeWithErrorHandling(interaction, async () => {
-      const distubeStatus = this.youtubeAPI.distube ? '✅ Initialized' : '❌ Not Initialized';
-      const nodeVersion = process.version;
-      const uptime = Math.floor(process.uptime());
-      const memory = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-      
-      await interaction.editReply({
-        content: '🔧 **Bot Debug Info**\n\n' +
-                `**DisTube Status:** ${distubeStatus}\n` +
-                `**Node.js Version:** ${nodeVersion}\n` +
-                `**Uptime:** ${uptime} seconds\n` +
-                `**Memory Usage:** ${memory} MB\n` +
-                `**Environment:** ${process.env.NODE_ENV || 'development'}\n` +
-                `**Servers:** ${this.client.guilds.cache.size}`
-      });
+    await interaction.deferReply();
+    
+    const distubeStatus = this.youtubeAPI.distube ? '✅ Initialized' : '❌ Not Initialized';
+    const nodeVersion = process.version;
+    const uptime = Math.floor(process.uptime());
+    const memory = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+    
+    await interaction.editReply({
+      content: '🔧 **Bot Debug Info**\n\n' +
+              `**DisTube Status:** ${distubeStatus}\n` +
+              `**Node.js Version:** ${nodeVersion}\n` +
+              `**Uptime:** ${uptime} seconds\n` +
+              `**Memory Usage:** ${memory} MB\n` +
+              `**Environment:** ${process.env.NODE_ENV || 'development'}\n` +
+              `**Servers:** ${this.client.guilds.cache.size}`
     });
   }
 
@@ -487,21 +396,21 @@ class YouTubeMusicDiscordBot {
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
 
     try {
-      logger.info('Clearing all existing commands...');
+      logger.info('Starting command registration...');
 
-      const route = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID
-        ? Routes.applicationCommands(process.env.DISCORD_CLIENT_ID)
-        : Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID);
-
-      await rest.put(route, { body: [] });
+      const globalRoute = Routes.applicationCommands(process.env.DISCORD_CLIENT_ID);
       
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      logger.info('Registering fresh commands...');
-      await rest.put(route, { body: this.commandsData });
-      
-      const scope = process.env.NODE_ENV === 'production' || !process.env.DISCORD_GUILD_ID ? 'globally' : `for guild ${process.env.DISCORD_GUILD_ID}`;
-      logger.info(`Registered ${this.commandsData.length} commands ${scope}`);
+      if (process.env.DISCORD_GUILD_ID) {
+        const guildRoute = Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID);
+        
+        logger.info('Registering commands to guild for instant availability...');
+        await rest.put(guildRoute, { body: this.commandsData });
+        logger.info(`Registered ${this.commandsData.length} commands to guild ${process.env.DISCORD_GUILD_ID}`);
+      } else {
+        logger.info('Registering commands globally...');
+        await rest.put(globalRoute, { body: this.commandsData });
+        logger.info(`Registered ${this.commandsData.length} commands globally`);
+      }
     } catch (error) {
       logger.error('Command registration failed:', error);
       throw error;

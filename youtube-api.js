@@ -251,7 +251,7 @@ class YouTubeAPI {
           member: interaction.member
         }),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Play timeout - try again')), 20000)
+          setTimeout(() => reject(new Error('Connection timeout - cannot connect to voice channel')), 15000)
         )
       ]);
 
@@ -261,13 +261,21 @@ class YouTubeAPI {
 
       return this.createResponse(true, message, { track, addedToQueue: wasPlaying });
     } catch (playError) {
+      console.error('Play error details:', playError.message);
+      
       if (playError.message.includes('Sign in to confirm') || 
           playError.message.includes('bot') ||
           playError.message.includes('YTDLP_ERROR')) {
-        
         return await this.handleYouTubeBlocked(track);
       }
-      throw playError;
+      
+      if (playError.message.includes('timeout') || 
+          playError.message.includes('Cannot connect') ||
+          playError.message.includes('Connection timeout')) {
+        return this.createResponse(false, '❌ Cannot connect to voice channel. Try:\n• Joining a different voice channel\n• Checking your connection\n• Using /leave then /play again');
+      }
+      
+      return this.createResponse(false, `❌ ${playError.message}`);
     }
   }
 
