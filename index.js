@@ -337,10 +337,8 @@ class YouTubeMusicDiscordBot {
           this.updatePresence(`🎵 ${result.track.title}`);
         }
       } else {
-        if (result.message.includes('Railway Hosting Limitation')) {
-          await this.sendReply(interaction, result.message);
-        } else if (result.message.includes('YouTube blocked access')) {
-          await this.sendReply(interaction, `🚫 **YouTube Access Blocked**\n\n${result.message}\n\n💡 **Alternative Solutions:**\n• Try different search terms\n• Use specific song titles\n• Consider self-hosting on a VPS`);
+        if (result.message.includes('YouTube blocked access')) {
+          await this.sendReply(interaction, `🚫 **YouTube Access Blocked**\n\n${result.message}\n\n💡 **Alternative Solutions:**\n• Try different search terms\n• Use specific song titles\n• Consider checking your internet connection`);
         } else {
           await this.sendReply(interaction, `❌ ${result.message}`);
         }
