@@ -1,41 +1,38 @@
 # Discord YouTube Music Bot
 
-🎵 **A professional Discord music bot that serves multiple servers simultaneously**
+🎵 **A Discord music bot that plays YouTube music in voice channels**
 
-## For Server Owners
+## Local Hosting Only
 
-Simply invite the bot to your Discord server using this link:
-[**🎵 Add Music Bot to Your Server**](https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID_HERE&permissions=3148800&scope=bot%20applications.commands)
+This bot is currently **not deployed** and requires local hosting. Run it using:
+```bash
+node index.js
+```
 
-### Available Commands:
-- `/play <song>` - Play or queue a song from YouTube
-- `/pause` - Pause the current song
-- `/resume` - Resume playback
-- `/skip` - Skip to next song in queue
-- `/previous` - Go to previous song
-- `/queue` - Show current queue
-- `/nowplaying` - Show current song info
-- `/volume <1-100>` - Set volume level of bot
-- `/stop` - Stop playback and clear queue
-- `/join` - Join your voice channel
-- `/leave` - Leave voice channel
+## Commands
 
-## Features
+- 🎵 `/play <song>` - Play or queue a song from YouTube
+- ⏸️ `/pause` - Pause the current song
+- ▶️ `/resume` - Resume playback
+- ⏭️ `/skip` - Skip to next song
+- ⏮️ `/previous` - Go to previous song
+- 📋 `/queue` - Show current queue
+- 🎭 `/nowplaying` - Show current song info with repeat mode and volume
+- 🔊 `/volume <0-100>` - Set volume level
+- ⏹️ `/stop` - Stop playback and clear queue
+- ➡️ `/join` - Join your voice channel
+- ⬅️ `/leave` - Leave voice channel
+- 🔧 `/debug` - Show bot system status
 
-- 🎵 Play music from YouTube directly in Discord voice channels
-- ⏯️ Full playback controls (play, pause, resume, skip, previous, stop)
-- 🔊 Volume control
-- 📋 Smart queue management with automatic queuing
-- 🎭 Now playing display
-- 🔄 Repeat modes (none, track, queue)
-- 🎮 Easy-to-use slash commands
-- 🚀 Multi-server support - one bot serves unlimited Discord servers
+## Setup
 
----
+### 1. Install Dependencies
 
-## For Developers & Self-Hosting
+```bash
+npm install
+```
 
-### 1. Get API Keys
+### 2. Get API Keys
 
 #### Discord Bot Setup
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
@@ -53,106 +50,20 @@ Simply invite the bot to your Discord server using this link:
 3. Enable the **YouTube Data API v3**
 4. Go to "Credentials" > "Create Credentials" > "API Key"
 5. Copy the API key
-6. (Optional) Restrict the API key to YouTube Data API v3 for security
-
-### 2. Install Dependencies
-
-```bash
-npm install
-```
 
 ### 3. Configure Environment
 
 Create a `.env` file:
 
 ```env
-# Discord Bot Configuration
 DISCORD_BOT_TOKEN=your_discord_bot_token
 DISCORD_CLIENT_ID=your_discord_client_id
-DISCORD_GUILD_ID=your_discord_guild_id
-
-# YouTube API Configuration
 YOUTUBE_API_KEY=your_youtube_api_key
 ```
 
-### 4. Run the Bot
-
-## Commands
-
-| Command | Description | Usage |
-|---------|-------------|--------|
-| `/play <query>` | Play a song from YouTube | `/play never gonna give you up` |
-| `/pause` | Pause current playback | `/pause` |
-| `/resume` | Resume paused playback | `/resume` |
-| `/skip` | Skip to next song | `/skip` |
-| `/previous` | Go to previous song | `/previous` |
-| `/volume <level>` | Set volume (0-100) | `/volume 50` |
-| `/nowplaying` | Show current song info | `/nowplaying` |
-| `/queue` | Show current queue | `/queue` |
-| `/stop` | Stop playback and clear queue | `/stop` |
-| `/join` | Join your voice channel | `/join` |
-| `/leave` | Leave voice channel | `/leave` |
-
 ## Usage
 
-1. **Join a voice channel** in your Discord server
-2. **Use `/play <song name>`** to start playing music
-3. **Use other commands** to control playback
-
-The bot will automatically:
-- Join your voice channel when you use `/play`
-- Search YouTube for your query
-- Play the best match
-- Show what's currently playing
-- Manage the queue automatically
-
-## Project Structure
-
-```
-discord-bot/
-├── index.js          # Main bot application
-├── youtube-api.js    # YouTube API integration
-├── utils.js          # Utility functions
-├── package.json      # Dependencies
-└── README.md         # This file
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**"You need to be in a voice channel"**
-- Solution: Join a voice channel before using music commands
-
-**"No results found"**
-- Solution: Try different search terms or check your internet connection
-
-**"An error occurred while playing"**
-- Solution: Check your YouTube API key and quota limits
-
-**Bot not responding**
-- Solution: Check bot permissions and ensure it's online
-
-### API Limits
-
-The YouTube Data API has daily quotas:
-- **Free tier**: 10,000 units/day
-- **Each search**: ~100 units
-- **Each play**: ~1-3 units
-
-Monitor your usage in the Google Cloud Console.
-
-## License
-
-MIT License - feel free to use and modify!
-
-## Support
-
-For issues and questions:
-1. Check the troubleshooting section above
-2. Review the [Discord.js documentation](https://discord.js.org/)
-3. Check [YouTube Data API documentation](https://developers.google.com/youtube/v3)
-
----
-
-**Note**: This bot streams audio directly from YouTube to Discord voice channels. Make sure you comply with YouTube's Terms of Service and Discord's Terms of Service when using this bot.
+1. Start the bot: `node index.js`
+2. Join a voice channel in your Discord server
+3. Use `/play <song name>` to start playing music
+4. Use other commands to control playback
