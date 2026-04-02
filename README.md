@@ -83,6 +83,7 @@ See the in-app **How to run** page (`/how-to-run` after build) or:
 - **Voice issues**: confirm bot permissions (`Connect`, `Speak`) and that you are in a voice channel.
 - **Connection timeout on /play**: first join can be slow (ffmpeg/yt-dlp). The bot waits up to **60s** by default; increase with `VOICE_CONNECT_TIMEOUT_MS` in `.env`. On Windows, allow **Node.js** through the firewall for **UDP**; VPNs often break Discord voice.
 - **`DEP0190` in the console**: comes from a dependency spawning a subprocess on newer Node; it does not mean the bot failed. Safe to ignore until upstream fixes it.
+- **No results / playback errors for YouTube**: the bot uses the **YouTube Data API v3** to search (check key, quota, and that the API is enabled in Google Cloud) and **yt-dlp** (via `@distube/yt-dlp`) to download audio. If search fails, check the server log for `YouTube Data API response` (403 often means quota or API not enabled). If search works but audio fails, YouTube may be blocking the host; try another network or update yt-dlp (`npx yt-dlp -U` if you use a global binary).
 
 ## Deployment
 

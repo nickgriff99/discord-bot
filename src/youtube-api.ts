@@ -91,23 +91,19 @@ class YouTubeAPI {
             '--extract-flat',
             'false',
             '--socket-timeout',
-            '30',
+            '45',
             '--retries',
-            '3'
+            '5'
           ]
         }
       };
 
-      if (process.env.NODE_ENV === 'production') {
-        this.distube = new DisTube(client, {
-          ffmpeg: { path: ffmpegPath }
-        });
-      } else {
-        this.distube = new DisTube(client, {
-          plugins: [new YtDlpPlugin(ytDlpOptions) as never],
-          ffmpeg: { path: ffmpegPath }
-        });
-      }
+      // DisTube v5 needs a playable extractor (e.g. yt-dlp) for YouTube URLs in all environments.
+      // A "production" DisTube with plugins: [] cannot resolve YouTube streams.
+      this.distube = new DisTube(client, {
+        plugins: [new YtDlpPlugin(ytDlpOptions) as never],
+        ffmpeg: { path: ffmpegPath }
+      });
 
       this.setupDisTubeEvents();
     } catch (error) {
@@ -187,12 +183,8 @@ class YouTubeAPI {
           q: query,
           type: ['video'],
           maxResults: 5,
-          videoCategoryId: '10',
           order: 'relevance',
           safeSearch: 'none',
-          videoEmbeddable: 'true',
-          videoSyndicated: 'true',
-          videoDuration: 'any',
           fields: 'items(id/videoId,snippet(title,channelTitle))'
         }),
         new Promise<never>((_, reject) =>
@@ -219,6 +211,13 @@ class YouTubeAPI {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error('YouTube search error:', msg);
+      const errObj = error as { response?: { status?: number; data?: unknown } };
+      if (errObj.response) {
+        logger.error('YouTube Data API response', {
+          status: errObj.response.status,
+          data: errObj.response.data
+        });
+      }
       return null;
     }
   }

@@ -29,12 +29,14 @@ export function HeroSection() {
           <Link
             to="/how-to-run"
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:bg-accent-bright focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            target="_blank"
           >
             Setup
           </Link>
           <Link
             to="/commands"
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-surface-border bg-surface-raised px-6 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-zinc-600 hover:bg-surface-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
+            target="_blank"
           >
             Commands
           </Link>
