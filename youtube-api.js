@@ -2,6 +2,9 @@ import { google } from 'googleapis';
 import { DisTube } from 'distube';
 import { YtDlpPlugin } from '@distube/yt-dlp';
 import ffmpegStatic from 'ffmpeg-static';
+import { createLogger } from './utils.js';
+
+const logger = createLogger('YouTubeAPI');
 
 class YouTubeAPI {
   constructor() {
@@ -36,28 +39,18 @@ class YouTubeAPI {
   async initializeDistube(client) {
     if (!this.distube) {
       try {
-        console.log('Starting DisTube initialization...');
-        console.log('Node.js version:', process.version);
-        console.log('Environment:', process.env.NODE_ENV);
-        
         const ffmpegPath = ffmpegStatic || 'ffmpeg';
-        console.log('Initializing DisTube with ffmpeg path:', ffmpegPath);
-        console.log('ffmpeg-static resolved to:', ffmpegPath);
-        
         if (typeof ffmpegPath === 'string' && ffmpegPath !== 'ffmpeg') {
           const fs = await import('fs');
           try {
             fs.accessSync(ffmpegPath, fs.constants.F_OK);
-            console.log('✅ FFmpeg binary found and accessible');
           } catch (error) {
-            console.log('❌ FFmpeg binary not accessible:', error.message);
+            logger.warn('ffmpeg path not readable:', error.message);
           }
         }
-        
+
         process.env.FFMPEG_PATH = ffmpegPath;
-        
-        console.log('Creating DisTube with optimized configuration...');
-        
+
         const ytDlpOptions = {
           ffmpegPath: ffmpegPath,
           update: false,
@@ -75,7 +68,6 @@ class YouTubeAPI {
         };
 
         if (process.env.NODE_ENV === 'production') {
-          console.log('🏭 Production mode: Basic DisTube configuration');
           this.distube = new DisTube(client, {
             ffmpeg: { path: ffmpegPath }
           });
@@ -85,89 +77,57 @@ class YouTubeAPI {
             ffmpeg: { path: ffmpegPath }
           });
         }
-        
-        console.log('✅ DisTube instance created successfully');
+
         this.setupDisTubeEvents();
-        console.log('✅ DisTube events configured');
-        console.log('✅ DisTube initialization completed successfully');
       } catch (error) {
-        console.error('❌ Failed to initialize DisTube:', error);
-        console.error('Error stack:', error.stack);
+        logger.error('DisTube init failed:', error.message);
         this.distube = null;
         throw error;
       }
-    } else {
-      console.log('DisTube already initialized');
     }
   }
 
   setupDisTubeEvents() {
     this.distube.on('playSong', (queue, song) => {
-      console.log('🎵 Now playing:', song.name);
-      console.log('Song duration:', song.duration);
-      console.log('Song URL:', song.url);
-      console.log('Voice connection status:', queue.voice?.connection?.state?.status);
-      console.log('Audio resource state:', queue.voice?.audioResource?.playbackDuration);
-      
-      setTimeout(() => {
-        console.log('🕐 5 seconds check - still playing?', queue.playing);
-        console.log('🕐 Current song:', queue.songs[0]?.name || 'none');
-        console.log('🕐 Audio resource duration:', queue.voice?.audioResource?.playbackDuration);
-        
-        if (!queue.playing && queue.songs.length > 0) {
-          console.log('⚠️ DIAGNOSIS: Audio streaming is failing immediately after creation');
-          console.log('🏥 This indicates hosting environment cannot maintain real-time audio streams to Discord');
-          console.log('💡 Recommendation: Consider alternative hosting or check network connectivity');
-        }
-      }, 5000);
+      logger.info(`Playing: ${song.name}`);
     });
 
     this.distube.on('addSong', (queue, song) => {
-      console.log('➕ Added to queue:', song.name);
+      logger.info(`Queued: ${song.name}`);
     });
 
     this.distube.on('finish', (queue) => {
-      console.log('🏁 Queue finished for guild:', queue.id);
-      console.log('Reason for finish - queue songs remaining:', queue.songs?.length || 0);
+      logger.info(`Queue empty, guild ${queue.id}`);
     });
 
     this.distube.on('finishSong', (queue, song) => {
-      console.log('🎤 Song finished:', song.name);
-      console.log('Song played for duration:', queue.voice?.audioResource?.playbackDuration || 'unknown');
-      console.log('Next songs in queue:', queue.songs?.length || 0);
-      
       const playbackDuration = queue.voice?.audioResource?.playbackDuration;
       if (!playbackDuration || playbackDuration < 5000) {
-        console.log('💀 CONFIRMED: Stream failed - played for < 5 seconds');
-        console.log('🐛 Issue: Hosting environment cannot sustain Discord voice connections');
+        logger.warn(`Short playback (${playbackDuration ?? 0}ms): ${song.name}`);
       }
     });
 
     this.distube.on('error', (channel, error) => {
-      console.error('❌ DisTube error:', error.message);
-      console.error('Error code:', error.errorCode);
-      console.error('Full error:', error);
+      logger.error('DisTube:', error.message);
       if (channel) {
-        channel.send(`❌ Music error: ${error.message}`).catch(() => {});
+        channel.send(`Playback error: ${error.message}`).catch(() => {});
       }
     });
 
     this.distube.on('disconnect', (queue) => {
-      console.log('🔌 DisTube disconnected from guild:', queue.id);
+      logger.info(`Voice disconnected, guild ${queue.id}`);
     });
 
     this.distube.on('empty', (queue) => {
-      console.log('📭 Voice channel empty for guild:', queue.id);
+      logger.info(`Voice channel empty, guild ${queue.id}`);
     });
 
     this.distube.on('initQueue', (queue) => {
-      console.log('🎶 Queue initialized for guild:', queue.id);
-      console.log('Initial voice connection state:', queue.voice?.connection?.state?.status);
       queue.volume = this.volume;
     });
 
     this.distube.on('debug', (message) => {
-      console.log('🐛 DisTube debug:', message);
+      logger.debug('DisTube:', message);
     });
   }
 
@@ -204,7 +164,7 @@ class YouTubeAPI {
         url: `https://www.youtube.com/watch?v=${item.id.videoId}`
       };
     } catch (error) {
-      console.error('YouTube search error:', error.message);
+      logger.error('YouTube search error:', error.message);
       return null;
     }
   }
@@ -212,15 +172,14 @@ class YouTubeAPI {
   async play(interaction, query = null) {
     try {
       if (!this.distube) {
-        console.log('DisTube not initialized, attempting emergency initialization...');
         if (interaction?.client) {
           await this.initializeDistube(interaction.client);
           if (!this.distube) {
-            return this.createResponse(false, 'Music system initialization failed. Please try again.');
+            return this.createResponse(false, 'Music backend failed to start. Try again.');
           }
           await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-          return this.createResponse(false, 'Music system not ready. Please try again.');
+          return this.createResponse(false, 'Music backend not ready.');
         }
       }
 
@@ -230,7 +189,7 @@ class YouTubeAPI {
 
       return await this.playTrack(interaction, query);
     } catch (error) {
-      console.error('Play error:', error.message);
+      logger.error('Play error:', error.message);
       return this.createResponse(false, `Error playing track: ${error.message}`);
     }
   }
@@ -261,7 +220,7 @@ class YouTubeAPI {
 
       return this.createResponse(true, message, { track, addedToQueue: wasPlaying });
     } catch (playError) {
-      console.error('Play error details:', playError.message);
+      logger.error('Play error details:', playError.message);
       
       if (playError.message.includes('Sign in to confirm') || 
           playError.message.includes('bot') ||
@@ -269,20 +228,22 @@ class YouTubeAPI {
         return await this.handleYouTubeBlocked(track);
       }
       
-      if (playError.message.includes('timeout') || 
+      if (playError.message.includes('timeout') ||
           playError.message.includes('Cannot connect') ||
           playError.message.includes('Connection timeout')) {
-        return this.createResponse(false, '❌ Cannot connect to voice channel. Try:\n• Joining a different voice channel\n• Checking your connection\n• Using /leave then /play again');
+        return this.createResponse(false, 'Voice connection failed. Try another channel, check your network, or /leave then /play.');
       }
-      
-      return this.createResponse(false, `❌ ${playError.message}`);
+
+      return this.createResponse(false, playError.message);
     }
   }
 
   async handleYouTubeBlocked(track) {
-    console.log('🚫 YouTube blocked access, implementing fallback...');
-    
-    return this.createResponse(false, `❌ YouTube access blocked for "${track.title}". Try:\n• Different search terms\n• Direct YouTube links\n• Check your network connection`);
+    logger.warn(`YouTube blocked: ${track.title}`);
+    return this.createResponse(
+      false,
+      `YouTube blocked "${track.title}". Try another search, a direct video URL, or check the network.`
+    );
   }
 
   executeQueueAction(guildId, action, successMessage, errorMessage) {
@@ -321,7 +282,7 @@ class YouTubeAPI {
       
       return this.createResponse(true, successMessage);
     } catch (error) {
-      console.error(`Queue action error (${action}):`, error.message);
+      logger.error(`Queue action error (${action}):`, error.message);
       return this.createResponse(false, errorMessage);
     }
   }
@@ -353,7 +314,8 @@ class YouTubeAPI {
         this.distube.setVolume(guildId, this.volume);
       }
       return { success: true, volume: this.volume };
-    } catch {
+    } catch (error) {
+      logger.error('Volume update failed:', error.message);
       return this.createResponse(false, 'Unable to set volume');
     }
   }
@@ -382,7 +344,7 @@ class YouTubeAPI {
         repeatMode: this.repeatMode
       };
     } catch (error) {
-      console.error('getCurrentTrack error:', error.message);
+      logger.error('getCurrentTrack error:', error.message);
       return this.createEmptyTrackResponse();
     }
   }
@@ -410,7 +372,7 @@ class YouTubeAPI {
         length: queue.songs.length
       };
     } catch (error) {
-      console.error('getQueue error:', error.message);
+      logger.error('getQueue error:', error.message);
       return this.createEmptyQueueResponse();
     }
   }

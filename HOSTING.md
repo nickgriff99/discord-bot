@@ -1,29 +1,35 @@
-# Simple Deployment Guide
+# Optional Hosting Guide
 
-## Host Your Bot 24/7
+This project is designed for local-first development and testing.
 
-### Railway (Recommended - $5/month unlimited)
-1. Push code to GitHub
-2. Connect Railway to your GitHub repo
-3. Set environment variables in Railway dashboard:
-   - `DISCORD_BOT_TOKEN`: Your bot token
-   - `DISCORD_CLIENT_ID`: Your bot client ID  
-   - `YOUTUBE_API_KEY`: Your YouTube API key
-   - `NODE_ENV`: production
-4. Deploy - your bot serves unlimited Discord servers!
+Use hosting only when you are ready, and verify voice streaming stability in your target environment before sharing publicly.
 
-### Render ($7/month unlimited)
-1. Connect GitHub repo to Render
-2. Create new Web Service
-3. Build Command: `npm install`
-4. Start Command: `npm start`
-5. Add environment variables
-6. Deploy
+## Required Environment Variables
 
-### VPS (DigitalOcean, Linode, etc - $5-10/month)
+- `DISCORD_BOT_TOKEN`
+- `DISCORD_CLIENT_ID`
+- `YOUTUBE_API_KEY`
+- `NODE_ENV=production`
+
+## Railway
+
+1. Push this repository to GitHub
+2. Create a Railway project from that repo
+3. Add the required environment variables
+4. Deploy with `npm start`
+
+## Render
+
+1. Connect your repo in Render
+2. Create a Web Service
+3. Build command: `npm install`
+4. Start command: `npm start`
+5. Add required environment variables and deploy
+
+## VPS (PM2)
+
 ```bash
-# On your server
-git clone your-repo
+git clone <your-repo-url>
 cd discord-bot
 npm install
 pm2 start index.js --name discord-bot
@@ -31,10 +37,9 @@ pm2 startup
 pm2 save
 ```
 
-## Bot Invitation Link
+## Invite Link Setup
 
-Generate your bot invite link at Discord Developer Portal:
+In Discord Developer Portal URL Generator:
+
 - Scopes: `bot`, `applications.commands`
-- Permissions: Send Messages, Use Slash Commands, Connect, Speak, Use Voice Activity
-
-Users simply click the link to add your bot to their servers!
+- Permissions: `Send Messages`, `Use Slash Commands`, `Connect`, `Speak`, `Use Voice Activity`
