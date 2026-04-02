@@ -1,10 +1,14 @@
-.env
-.env.local
-.env.*.local
-.env.production
-.env.development
+# Secrets and local env (commit .env.example as a template only)
+.env*
+!.env.example
 config.json
 secrets.json
+credentials.json
+credentials-*.json
+service-account*.json
+google-credentials.json
+*.pem
+*.key
 
 node_modules/
 npm-debug.log*
@@ -40,7 +44,8 @@ Thumbs.db
 *.mp4
 *.mkv
 
-*.html
+# Crawler / tool HTML at repo root only (web/*.html stays tracked)
+/*.html
 *-watch.html
 ytdl-cache/
 temp/

@@ -455,6 +455,7 @@ async function gracefulShutdown(signal) {
 
   try {
     if (bot.webServer) {
+      bot.webServer.closeAllConnections?.();
       await new Promise((resolve, reject) => {
         bot.webServer.close((err) => (err ? reject(err) : resolve()));
       });

@@ -37,8 +37,24 @@ function safePath(urlPath) {
   return cleanPath.startsWith(WEB_DIR) ? cleanPath : null;
 }
 
-export function startWebServer(options = {}) {
-  const port = options.port ?? (Number(process.env.WEB_PORT) || 4173);
+function tryListen(server, port) {
+  return new Promise((resolve, reject) => {
+    const onError = (err) => {
+      server.removeListener('listening', onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolve();
+    };
+    server.once('error', onError);
+    server.listen(port, onListening);
+  });
+}
+
+export async function startWebServer(options = {}) {
+  const preferred = options.port ?? (Number(process.env.WEB_PORT) || 4173);
+  const maxAttempts = options.maxPortAttempts ?? 32;
   const log = options.logger ?? ((msg) => console.log(msg));
 
   const server = createServer((req, res) => {
@@ -55,14 +71,30 @@ export function startWebServer(options = {}) {
     createReadStream(filePath).pipe(res);
   });
 
-  return new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, () => {
-      server.removeListener('error', reject);
-      log(`HTTP http://localhost:${port} (web/)`);
-      resolve({ server, port });
-    });
-  });
+  let boundPort = preferred;
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = preferred + i;
+    try {
+      await tryListen(server, port);
+      boundPort = port;
+      break;
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') {
+        throw err;
+      }
+      if (i === maxAttempts - 1) {
+        throw err;
+      }
+    }
+  }
+
+  if (boundPort !== preferred) {
+    log(`HTTP http://localhost:${boundPort} (web/) — port ${preferred} in use`);
+  } else {
+    log(`HTTP http://localhost:${boundPort} (web/)`);
+  }
+
+  return { server, port: boundPort };
 }
 
 function isDirectRun() {
