@@ -1,123 +1,93 @@
 # Discord YouTube Music Bot
 
-A local-first Discord music bot that plays YouTube audio in voice channels, with slash-command controls and queue management.
+TypeScript Discord bot that plays YouTube audio in voice channels, with slash commands and a React + Vite docs site in `web/`.
 
 ## Features
 
-- Slash commands for playback
-- Queue and now playing
-- Volume `0–100`
+- Slash commands for playback, queue, volume, and more
 - `/debug` for basic runtime info
 - Multi-guild
-- Static pages in `web/` (served when the bot starts)
+- **Web UI**: React (TSX), Tailwind CSS, Framer Motion — built to `web/dist/` and served over HTTP when the bot starts (unless `SKIP_WEB_SERVER` is set)
 
 ## Prerequisites
 
-- Node.js `18+`
-- A Discord application and bot token
-- A YouTube Data API v3 key
-- FFmpeg available (the app uses `ffmpeg-static` and falls back to system FFmpeg)
+- Node.js **18+**
+- Discord application and bot token
+- YouTube Data API v3 key
+- FFmpeg (`ffmpeg-static` bundled; can fall back to system FFmpeg)
 
-## Quick Start (Local)
+## Quick start
 
-1. Install dependencies:
+1. **Install**
 
 ```bash
 npm install
 ```
 
-2. Create `.env` in the project root:
+2. **Environment** — copy `.env.example` to `.env` and fill in:
 
 ```env
 DISCORD_BOT_TOKEN=your_discord_bot_token
 DISCORD_CLIENT_ID=your_discord_client_id
 YOUTUBE_API_KEY=your_youtube_api_key
-# Optional for instant slash command updates in one server
-DISCORD_GUILD_ID=your_test_server_id
+# Optional: instant slash updates in one guild while testing
+# DISCORD_GUILD_ID=your_test_server_id
+# Optional: HTTP port for static site (default 4173)
+# WEB_PORT=4173
 ```
 
-3. Start the bot (also serves `web/` over HTTP):
+3. **Build and run** (compiles the bot to `dist/` and the site to `web/dist/`):
 
 ```bash
+npm run build
 npm start
 ```
 
-The terminal prints the URL (default `http://localhost:4173`). Optional: `WEB_PORT` in `.env`.
+The terminal prints the URL for the built site (e.g. `http://localhost:4173`). The static server serves **`web/dist`** (SPA).
 
-4. For development with auto-restart:
+### Development
 
-```bash
-npm run dev
-```
+| Command | Purpose |
+|--------|---------|
+| `npm run dev` | Bot only — `tsx watch` on `src/` (no `tsc` step) |
+| `npm run dev:web` | Vite dev server for the React app (HMR), default port 5173 |
+| `SKIP_WEB_SERVER=1 npm run dev` | Bot without binding HTTP — use with `dev:web` in another terminal |
 
-## `web/` site
+After changing the web app, run `npm run build:web` (or use `dev:web`) so `web/dist` stays current if you rely on the bot’s HTTP server.
 
-Static HTML: home, how to run, command list. Served with `npm start` / `npm run dev`.
+| Command | Purpose |
+|--------|---------|
+| `npm run build` | `build:web` then `build:bot` |
+| `npm run build:web` | Vite → `web/dist` |
+| `npm run build:bot` | `tsc` → `dist/` |
+| `npm run web:start` | Serve `web/dist` only (`tsx src/web-server.ts`) |
+| `npm run invite` | Print invite URL template (`tsx src/generate-invite.ts`) |
+| `npm run lint` / `npm run lint:fix` | ESLint |
 
-HTTP only (no bot):
+## Discord & YouTube setup
 
-```bash
-npm run web:start
-```
+See the in-app **How to run** page (`/how-to-run` after build) or:
 
-Development mode (auto-restart the web server process):
+1. [Discord Developer Portal](https://discord.com/developers/applications) — bot token, Application ID, OAuth2 URL (scopes: `bot`, `applications.commands`; voice permissions as needed).
+2. [Google Cloud Console](https://console.cloud.google.com) — enable **YouTube Data API v3**, create an API key.
 
-```bash
-npm run web:dev
-```
+## Slash commands
 
-## Discord Setup
-
-1. Open [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application
-3. In **Bot**, create a bot user and copy the bot token
-4. In **General Information**, copy the **Application ID** (used as `DISCORD_CLIENT_ID`)
-5. In **OAuth2 > URL Generator**:
-- Scopes: `bot`, `applications.commands`
-- Bot Permissions: `Send Messages`, `Use Slash Commands`, `Connect`, `Speak`, `Use Voice Activity`
-6. Open generated invite URL and add bot to your server
-
-## YouTube API Setup
-
-1. Open [Google Cloud Console](https://console.cloud.google.com)
-2. Create/select a project
-3. Enable **YouTube Data API v3**
-4. Create an API key and place it in `.env` as `YOUTUBE_API_KEY`
-
-## Commands
-
-- `/play query:<song or search>`: Search YouTube and play/queue the first result
-- `/pause`: Pause playback
-- `/resume`: Resume playback
-- `/skip`: Skip to next track
-- `/previous`: Return to previous track
-- `/volume level:<0-100>`: Set volume
-- `/nowplaying`: Show current track details
-- `/queue`: Show queue snapshot
-- `/stop`: Stop and clear queue
-- `/join`: Voice channel readiness helper
-- `/leave`: Disconnect from voice
-- `/debug`: Show runtime diagnostics
-
-## Scripts
-
-- `npm start`: Bot + HTTP for `web/`
-- `npm run dev`: Same with `--watch`
-- `npm run web:start`: HTTP only
-- `npm run web:dev`: HTTP only with `--watch`
-- `npm run lint`: Lint codebase
-- `npm run lint:fix`: Auto-fix lint issues
+`/play`, `/pause`, `/resume`, `/skip`, `/previous`, `/volume`, `/nowplaying`, `/queue`, `/stop`, `/join`, `/leave`, `/debug` — details on `/commands` in the web app.
 
 ## Troubleshooting
 
-- `Invalid environment configuration`: verify `.env` values and names
-- Slash commands not appearing: set `DISCORD_GUILD_ID` for test server and restart
-- Voice/playback errors: confirm you are in a voice channel and bot has `Connect` + `Speak` permissions
-- Playback stops quickly on hosted runtimes: this project is optimized for local usage first; treat hosted deployment as optional and test carefully
+- **`Invalid environment configuration`**: check `.env` names and values.
+- **Slash commands missing**: set `DISCORD_GUILD_ID` for a test guild or wait for global registration.
+- **404 on `/` when running the bot**: run `npm run build:web` so `web/dist` exists.
+- **Voice issues**: confirm bot permissions (`Connect`, `Speak`) and that you are in a voice channel.
+- **Connection timeout on /play**: first join can be slow (ffmpeg/yt-dlp). The bot waits up to **60s** by default; increase with `VOICE_CONNECT_TIMEOUT_MS` in `.env`. On Windows, allow **Node.js** through the firewall for **UDP**; VPNs often break Discord voice.
+- **`DEP0190` in the console**: comes from a dependency spawning a subprocess on newer Node; it does not mean the bot failed. Safe to ignore until upstream fixes it.
 
 ## Deployment
 
-Local usage is the default workflow. Optional hosting notes are documented in `HOSTING.md`.
+- **Netlify**: static site only — `npm run build:web`, publish `web/dist` (see `netlify.toml`). SPA fallback is configured.
+- **Bot hosting** (Railway, Render, VPS, etc.): run `npm run build` then `npm start` (or `node dist/index.js`) with env vars set. See `HOSTING.md`.
 
 ## License
 

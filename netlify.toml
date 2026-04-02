@@ -1,0 +1,10 @@
+# Static React site (Vite build). The Discord bot runs elsewhere (Node host).
+
+[build]
+  command = "npm run build:web"
+  publish = "web/dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

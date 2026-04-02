@@ -1,16 +1,23 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "Start Discord Bot",
-			"type": "shell",
-			"command": "node",
-			"args": [
-				"index.js"
-			],
-			"group": "build",
-			"isBackground": false,
-			"problemMatcher": []
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Discord Bot",
+      "type": "shell",
+      "command": "npm",
+      "args": ["start"],
+      "group": "build",
+      "isBackground": false,
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev bot (tsx watch)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
 }

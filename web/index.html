@@ -1,105 +1,20 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Discord bot: YouTube audio in voice channels, slash commands.">
-  <title>Discord music bot</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
-</head>
-<body class="page-home">
-  <div class="bg-glow bg-glow-left" aria-hidden="true"></div>
-  <div class="bg-glow bg-glow-right" aria-hidden="true"></div>
-  <div class="bg-floaty" aria-hidden="true"></div>
-
-  <header class="topbar topbar--sticky">
-    <a class="brand" href="./index.html">Music bot</a>
-    <nav class="site-nav" aria-label="Main">
-      <a href="./index.html" class="nav-link nav-link--active" aria-current="page">Home</a>
-      <a href="./how-to-run.html" class="nav-link">How to run</a>
-      <a href="./commands.html" class="nav-link">Commands</a>
-    </nav>
-  </header>
-
-  <main>
-    <section class="hero hero--splash reveal">
-      <div class="hero__inner">
-        <p class="eyebrow hero__eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> Discord</p>
-        <h1 class="hero__title">YouTube audio in voice channels, controlled with slash commands.</h1>
-        <p class="lead hero__lead">Queue, volume, skip/pause, and a small static site under <code class="inline-code">web/</code> (served when you run <code class="inline-code">npm start</code>).</p>
-        <div class="hero-actions">
-          <a class="btn btn-primary btn--glow" href="./how-to-run.html">Setup</a>
-          <a class="btn btn-secondary btn--shine" href="./commands.html">Commands</a>
-        </div>
-        <div class="status-grid status-grid--hero">
-          <article class="stat-card">
-            <h2 class="stat-card__value">12</h2>
-            <p class="stat-card__label">Slash commands</p>
-          </article>
-          <article class="stat-card">
-            <h2 class="stat-card__value">0–100</h2>
-            <p class="stat-card__label">Volume</p>
-          </article>
-          <article class="stat-card">
-            <h2 class="stat-card__value">Multi</h2>
-            <p class="stat-card__label">Guilds</p>
-          </article>
-        </div>
-      </div>
-      <a class="hero__scroll-hint" href="#features" aria-label="Scroll to features">Explore<span class="hero__chev" aria-hidden="true"></span></a>
-    </section>
-
-    <section id="features" class="reveal section-features">
-      <div class="section-heading">
-        <p class="eyebrow">Features</p>
-        <h2>Playback and queue</h2>
-      </div>
-      <div class="bento-panel">
-        <div class="bento-grid" role="list">
-          <article class="bento bento--hero-tile" data-tilt role="listitem">
-            <span class="bento__tag">Play</span>
-            <h3 class="bento__title">Search</h3>
-            <p class="bento__text"><strong>/play</strong> with text or a URL; first YouTube hit from the Data API.</p>
-          </article>
-          <article class="bento bento--accent" data-tilt role="listitem">
-            <h3 class="bento__title">Queue</h3>
-            <p class="bento__text">Add tracks, view order, skip, previous.</p>
-          </article>
-          <article class="bento" data-tilt role="listitem">
-            <h3 class="bento__title">Transport</h3>
-            <p class="bento__text">Pause, resume, stop, volume.</p>
-          </article>
-          <article class="bento bento--wide" data-tilt role="listitem">
-            <h3 class="bento__title">Status</h3>
-            <p class="bento__text"><strong>/nowplaying</strong> and <strong>/queue</strong> for title, channel, repeat, length.</p>
-          </article>
-          <article class="bento" data-tilt role="listitem">
-            <h3 class="bento__title">Voice</h3>
-            <p class="bento__text"><strong>/join</strong>, <strong>/leave</strong> for VC lifecycle.</p>
-          </article>
-          <article class="bento bento--banner" data-tilt role="listitem">
-            <h3 class="bento__title">Debug</h3>
-            <p class="bento__text"><strong>/debug</strong> for process stats and whether DisTube loaded.</p>
-          </article>
-        </div>
-      </div>
-      <div class="landing-cta reveal">
-        <div class="hero-actions landing-cta__actions">
-          <a class="btn btn-primary" href="./how-to-run.html">Install &amp; invite</a>
-          <a class="btn btn-secondary" href="./commands.html">Command list</a>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="reveal">
-    <p>discord-bot</p>
-    <p>MIT</p>
-  </footer>
-
-  <script src="./app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Discord music bot — YouTube audio in voice channels with slash commands." />
+    <title>Discord music bot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-surface text-zinc-100 antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
